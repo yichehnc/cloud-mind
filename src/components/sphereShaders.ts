@@ -34,8 +34,8 @@ export const sphereFragmentShader = `
     float pulse = sin(uTime * 3.0) * 0.15 + 0.85;
     
     vec3 baseColor = uColor * pulse;
-    vec3 finalColor = mix(baseColor, vec3(1.0), fresnel * 0.6);
+    vec3 finalColor = mix(baseColor, vec3(1.0), fresnel * 0.2);
     
-    gl_FragColor = vec4(finalColor, 0.6);
+    gl_FragColor = vec4(finalColor, 0.9);
   }
 `;

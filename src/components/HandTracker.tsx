@@ -11,13 +11,16 @@ interface HandTrackerProps {
 const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isCurrentlyPinching, setIsCurrentlyPinching] = useState(false);
   const [handDistance, setHandDistance] = useState(0.5);
+  const [retryCount, setRetryCount] = useState(0);
   const lastStateRef = useRef(false);
   const activeRef = useRef(true);
 
   useEffect(() => {
     activeRef.current = true;
+    setPermissionError(null);
     if (!videoRef.current) return;
 
     const hands = new Hands({
@@ -95,6 +98,11 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
 
     camera.start().then(() => {
       if (activeRef.current) setIsLoaded(true);
+    }).catch((err) => {
+      console.error("Camera start error:", err);
+      if (activeRef.current) {
+        setPermissionError(err.name === 'NotAllowedError' ? 'Permission Denied' : 'Camera Error');
+      }
     });
 
     return () => {
@@ -102,20 +110,34 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
       camera.stop();
       hands.close();
     };
-  }, [onPinch, onLandmarks]);
+  }, [onPinch, onLandmarks, retryCount]);
 
   return (
     <div className="absolute bottom-6 right-6 w-56 h-40 bg-[#111] border border-white/20 rounded-lg overflow-hidden flex flex-col z-50 shadow-2xl">
       <div className="h-4 bg-[#222] flex items-center px-2 justify-between">
-        <span className="text-[8px] uppercase tracking-tighter text-[#888]">Gestural Biosurface: Active</span>
+        <span className="text-[8px] uppercase tracking-tighter text-[#888]">
+          {permissionError ? `Error: ${permissionError}` : 'Gestural Biosurface: Active'}
+        </span>
         <div className="flex gap-1">
-          <div className={`w-1 h-1 rounded-full ${isLoaded ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <div className={`w-1 h-1 rounded-full ${permissionError ? 'bg-red-500 animate-pulse' : (isLoaded ? 'bg-green-500' : 'bg-yellow-500')}`}></div>
         </div>
       </div>
       <div className="flex-grow flex items-center justify-center relative bg-black/40">
-        {!isLoaded && (
+        {!isLoaded && !permissionError && (
           <div className="absolute inset-0 flex items-center justify-center text-white/50 text-[10px] uppercase tracking-widest text-center">
             Initializing...
+          </div>
+        )}
+        {permissionError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center z-10 bg-black/80 backdrop-blur-sm">
+            <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider mb-2">Access Required</span>
+            <span className="text-white/40 text-[8px] leading-relaxed mb-4">Please enable camera to interact with the space</span>
+            <button 
+              onClick={() => setRetryCount(prev => prev + 1)}
+              className="px-3 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded text-[9px] text-white uppercase tracking-widest transition-colors"
+            >
+              Retry Access
+            </button>
           </div>
         )}
         <video

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail, Points, PointMaterial } from '@react-three/drei';
+import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail, Points, PointMaterial, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { Results } from '@mediapipe/hands';
@@ -40,17 +40,39 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
       color={new THREE.Color(sphere.color)}
       attenuation={(t) => t * 0.8}
     >
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[sphere.size, 32, 32]} />
-        <shaderMaterial
-          vertexShader={sphereVertexShader}
-          fragmentShader={sphereFragmentShader}
-          uniforms={uniforms}
+      <group ref={meshRef}>
+        <mesh>
+          <sphereGeometry args={[sphere.size, 32, 32]} />
+          <shaderMaterial
+            vertexShader={sphereVertexShader}
+            fragmentShader={sphereFragmentShader}
+            uniforms={uniforms}
+            transparent
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+        <Text
+          position={[0, sphere.size + 0.4, 0]}
+          fontSize={0.2}
+          color="white"
+          font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZJhiI2B.woff"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.01}
+          outlineColor="#000000"
+          fillOpacity={0.8}
           transparent
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
+          onBeforeRender={(renderer, scene, camera, geometry, material) => {
+            if (meshRef.current) {
+              const time = performance.now() * 0.002;
+              (material as THREE.MeshBasicMaterial).opacity = 0.5 + Math.sin(time) * 0.2;
+            }
+          }}
+        >
+          {sphere.emotion}
+        </Text>
+      </group>
     </Trail>
   );
 };
@@ -102,6 +124,19 @@ const Simulation = ({ spheres, isRunning, handResults }: { spheres: Map<string, 
         const dist = s1.pos.distanceTo(s2.pos);
         const minDist = (s1.size + s2.size) * 1.1;
         
+        // --- ADDED: Clustering Attraction ---
+        if (s1.emotion === s2.emotion || s1.color === s2.color) {
+          // Attract same emotions or colors
+          const attractionRange = 6.0;
+          if (dist < attractionRange && dist > minDist) {
+            const pullStrength = 0.0005 * (attractionRange - dist);
+            const pullDir = s2.pos.clone().sub(s1.pos).normalize();
+            s1.vel.add(pullDir.clone().multiplyScalar(pullStrength));
+            s2.vel.add(pullDir.clone().multiplyScalar(-pullStrength));
+          }
+        }
+        // ------------------------------------
+        
         if (dist < minDist) {
           const collisionNormal = s1.pos.clone().sub(s2.pos).normalize();
           const overlap = minDist - dist;
@@ -133,33 +168,42 @@ const Simulation = ({ spheres, isRunning, handResults }: { spheres: Map<string, 
 
 const HandVisualizer = ({ results }: { results: Results | null }) => {
   const pointsRef = useRef<THREE.Points>(null);
+  const posAttrRef = useRef<THREE.BufferAttribute>(null);
 
-  const [positions, setPositions] = useState<Float32Array>(new Float32Array(21 * 2 * 3)); // 2 hands, 21 points each
+  // Pre-allocate buffer for 2 hands, 21 points each
+  const positions = useMemo(() => new Float32Array(21 * 2 * 3), []);
 
   useFrame(() => {
-    if (!results || !results.multiHandLandmarks) return;
+    if (!results || !results.multiHandLandmarks || !posAttrRef.current) return;
 
-    const newPositions = new Float32Array(21 * 2 * 3);
+    // Reset positions to far away if hands are not detected to "hide" them
+    positions.fill(1000);
+
     results.multiHandLandmarks.forEach((landmarks, handIndex) => {
       if (handIndex >= 2) return;
       landmarks.forEach((landmark, i) => {
         const baseIdx = (handIndex * 21 + i) * 3;
         // Map [0, 1] to roughly [-BOUNDS, BOUNDS]
-        // Note: x is flipped in camera feed usually, mediapipe landmarks x:0 is left
-        newPositions[baseIdx] = (landmark.x - 0.5) * -20; // Scale up a bit more than bounds for presence
-        newPositions[baseIdx + 1] = (landmark.y - 0.5) * -15; // Invert y
-        newPositions[baseIdx + 2] = (landmark.z) * -10;
+        positions[baseIdx] = (landmark.x - 0.5) * -20;
+        positions[baseIdx + 1] = (landmark.y - 0.5) * -15;
+        positions[baseIdx + 2] = (landmark.z) * -10;
       });
     });
-    setPositions(newPositions);
 
-    if (pointsRef.current) {
-      pointsRef.current.geometry.attributes.position.needsUpdate = true;
-    }
+    posAttrRef.current.needsUpdate = true;
   });
 
   return (
-    <Points ref={pointsRef} positions={positions} stride={3}>
+    <Points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          ref={posAttrRef}
+          attach="attributes-position"
+          count={21 * 2}
+          array={positions}
+          itemSize={3}
+        />
+      </bufferGeometry>
       <PointMaterial
         transparent
         color="#ffffff"

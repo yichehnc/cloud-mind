@@ -96,12 +96,11 @@ export default function App() {
       <div className="absolute inset-0 opacity-5 pointer-events-none bg-mesh z-0"></div>
 
       {/* Header Navigation */}
-      <header className="relative z-20 flex justify-between items-start p-10">
+      <header className="absolute top-0 left-0 right-0 z-20 flex justify-between items-start p-10 pointer-events-none">
         <div className="flex flex-col">
-          <h1 className="text-5xl font-serif italic tracking-tighter text-white">Sentient Spaces</h1>
-          <p className="text-[10px] uppercase tracking-[0.3em] mt-2 text-[#666]">Emotion / Kinetic Interaction Lab</p>
+          <p className="text-[10px] uppercase tracking-[0.3em] font-medium text-white/40">Emotion / Kinetic Interaction Lab</p>
         </div>
-        <div className="flex gap-12 text-[11px] uppercase tracking-widest font-medium">
+        <div className="flex gap-12 text-[11px] uppercase tracking-widest font-medium pointer-events-auto">
           {!user ? (
             <button 
               onClick={login}
@@ -126,7 +125,7 @@ export default function App() {
       </header>
 
       {/* Main Simulation Area */}
-      <main className="flex-grow relative z-10 mx-10 border border-white/10 rounded-2xl overflow-hidden bg-black/40 backdrop-blur-sm">
+      <main className="absolute inset-0 z-10 overflow-hidden bg-black">
         <Experience isRunning={isRunning} handResults={handResults} />
 
         {!user && (
@@ -144,9 +143,9 @@ export default function App() {
         )}
 
         {/* Central Interaction Marker */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-          <div className="w-[400px] h-[400px] border border-white/5 rounded-full flex items-center justify-center">
-            <div className="w-[250px] h-[250px] border border-white/10 rounded-full flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-20">
+          <div className="w-[600px] h-[600px] border border-white/5 rounded-full flex items-center justify-center">
+            <div className="w-[400px] h-[400px] border border-white/10 rounded-full flex items-center justify-center">
               <div className="w-1 h-1 bg-white/20 rounded-full"></div>
             </div>
           </div>
@@ -160,13 +159,13 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="absolute bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-white/10 backdrop-blur-md rounded-full border border-white/20 flex items-center gap-3 z-[60]"
+              className="absolute bottom-24 left-1/2 -translate-x-1/2 px-6 py-3 bg-white/10 backdrop-blur-md rounded-full border border-white/20 flex items-center gap-3 z-[60]"
             >
               <div 
-                className="w-3 h-3 rounded-full animate-ping" 
+                className="w-2 h-2 rounded-full animate-ping" 
                 style={{ backgroundColor: EMOTION_PRESETS[currentEmotion] || stringToColor(currentEmotion) }}
               />
-              <span className="text-white text-sm font-medium tracking-tight">
+              <span className="text-white text-xs font-medium tracking-tight">
                 Released <span className="italic opacity-70 px-1">{currentEmotion}</span> into the space
               </span>
             </motion.div>
@@ -195,11 +194,14 @@ export default function App() {
         )}
       </div>
 
-      {/* Vertical Branding */}
-      <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-4 rotate-90 origin-right pointer-events-none">
-        <span className="text-[9px] uppercase tracking-[0.5em] text-[#333]">Digital Ephemeral Architecture</span>
-        <div className="w-12 h-px bg-[#333]"></div>
-        <span className="text-[9px] text-[#333]">©2026</span>
+      {/* Branding - Repositioned to bottom right */}
+      <div className="absolute right-10 bottom-8 z-50 flex items-center gap-4 pointer-events-none">
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-medium leading-none">Cloud Mind</span>
+          <span className="text-[9px] uppercase tracking-[0.2em] text-white/10 mt-1">Digital Ephemeral Architecture</span>
+        </div>
+        <div className="w-px h-6 bg-white/10"></div>
+        <span className="text-[9px] text-white/20 font-mono tracking-tighter">V1.0.4.C</span>
       </div>
     </div>
   );
