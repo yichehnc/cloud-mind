@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "Sphere": {
+      "title": "Sphere",
+      "description": "Represents an emotional sphere in the 3D space.",
+      "type": "object",
+      "properties": {
+        "emotion": { "type": "string", "description": "The emotion name entered by the user" },
+        "color": { "type": "string", "description": "Hex color code associated with the emotion" },
+        "x": { "type": "number", "description": "X coordinate in 3D space" },
+        "y": { "type": "number", "description": "Y coordinate in 3D space" },
+        "z": { "type": "number", "description": "Z coordinate in 3D space" },
+        "vx": { "type": "number", "description": "Velocity X" },
+        "vy": { "type": "number", "description": "Velocity Y" },
+        "vz": { "type": "number", "description": "Velocity Z" },
+        "size": { "type": "number", "description": "Size/Radius of the sphere" },
+        "userId": { "type": "string", "description": "ID of the user who created it" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["emotion", "color", "x", "y", "z", "vx", "vy", "vz", "size", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "spheres/{sphereId}": {
+      "schema": "Sphere",
+      "description": "Global collection of emotional spheres with physics simulation"
+    }
+  }
+}

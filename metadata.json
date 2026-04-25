@@ -1,0 +1,8 @@
+{
+  "name": "Cloud Mind",
+  "description": "An interactive aesthetic space where emotions become colored spheres. Control with hand gestures using MediaPipe.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}
