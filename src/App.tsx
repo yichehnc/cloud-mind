@@ -5,6 +5,7 @@ import Experience from './components/Experience';
 import EmotionInput, { EMOTION_PRESETS } from './components/EmotionInput';
 import HandTracker from './components/HandTracker';
 import { Power, PowerOff } from 'lucide-react';
+import { Results } from '@mediapipe/hands';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
@@ -28,6 +29,7 @@ export default function App() {
   const [currentEmotion, setCurrentEmotion] = useState('Happy');
   const [showNotification, setShowNotification] = useState(false);
   const [isRunning, setIsRunning] = useState(true);
+  const [handResults, setHandResults] = useState<Results | null>(null);
   const lastAddRef = useRef(0);
 
   useEffect(() => {
@@ -76,6 +78,10 @@ export default function App() {
     addSphere(currentEmotion, size);
   }, [addSphere, currentEmotion]);
 
+  const handleLandmarks = useCallback((results: Results) => {
+    setHandResults(results);
+  }, []);
+
   if (!isReady) {
     return (
       <div className="w-full h-screen bg-[#050505] flex items-center justify-center text-white/20 uppercase tracking-[0.3em] text-sm">
@@ -121,7 +127,7 @@ export default function App() {
 
       {/* Main Simulation Area */}
       <main className="flex-grow relative z-10 mx-10 border border-white/10 rounded-2xl overflow-hidden bg-black/40 backdrop-blur-sm">
-        <Experience isRunning={isRunning} />
+        <Experience isRunning={isRunning} handResults={handResults} />
 
         {!user && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px] z-20">
@@ -146,7 +152,7 @@ export default function App() {
           </div>
         </div>
         
-        {user && <HandTracker onPinch={handlePinch} />}
+        {user && <HandTracker onPinch={handlePinch} onLandmarks={handleLandmarks} />}
 
         <AnimatePresence>
           {showNotification && (

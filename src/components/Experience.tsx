@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail } from '@react-three/drei';
+import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail, Points, PointMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { Results } from '@mediapipe/hands';
 import { db, auth, SphereData, OperationType, handleFirestoreError } from '../lib/firebase';
 import { sphereVertexShader, sphereFragmentShader } from './sphereShaders';
 
@@ -46,20 +47,44 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
           fragmentShader={sphereFragmentShader}
           uniforms={uniforms}
           transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
         />
       </mesh>
     </Trail>
   );
 };
 
-const Simulation = ({ spheres, isRunning }: { spheres: Map<string, LocalSphere>, isRunning: boolean }) => {
+const Simulation = ({ spheres, isRunning, handResults }: { spheres: Map<string, LocalSphere>, isRunning: boolean, handResults: Results | null }) => {
   useFrame((state, delta) => {
     if (!isRunning) return;
 
     const sphereList = Array.from(spheres.values());
     const friction = Math.max(0.985, 1.0 - sphereList.length * 0.00015);
     
+    // Hand interaction positions
+    const handPoints: THREE.Vector3[] = [];
+    if (handResults && handResults.multiHandLandmarks) {
+      handResults.multiHandLandmarks.forEach((landmarks) => {
+        const indexTip = landmarks[8];
+        handPoints.push(new THREE.Vector3(
+          (indexTip.x - 0.5) * -20,
+          (indexTip.y - 0.5) * -15,
+          (indexTip.z) * -10
+        ));
+      });
+    }
+
     for (const s of sphereList) {
+      // Hand pushing logic
+      handPoints.forEach(hp => {
+        const dist = s.pos.distanceTo(hp);
+        if (dist < 3.0) {
+          const force = s.pos.clone().sub(hp).normalize().multiplyScalar((3.0 - dist) * 0.1);
+          s.vel.add(force);
+        }
+      });
+
       s.pos.add(s.vel.clone().multiplyScalar(delta * 60));
       
       const boundsWithRadius = BOUNDS;
@@ -106,7 +131,48 @@ const Simulation = ({ spheres, isRunning }: { spheres: Map<string, LocalSphere>,
   );
 };
 
-const Experience = ({ isRunning }: { isRunning: boolean }) => {
+const HandVisualizer = ({ results }: { results: Results | null }) => {
+  const pointsRef = useRef<THREE.Points>(null);
+
+  const [positions, setPositions] = useState<Float32Array>(new Float32Array(21 * 2 * 3)); // 2 hands, 21 points each
+
+  useFrame(() => {
+    if (!results || !results.multiHandLandmarks) return;
+
+    const newPositions = new Float32Array(21 * 2 * 3);
+    results.multiHandLandmarks.forEach((landmarks, handIndex) => {
+      if (handIndex >= 2) return;
+      landmarks.forEach((landmark, i) => {
+        const baseIdx = (handIndex * 21 + i) * 3;
+        // Map [0, 1] to roughly [-BOUNDS, BOUNDS]
+        // Note: x is flipped in camera feed usually, mediapipe landmarks x:0 is left
+        newPositions[baseIdx] = (landmark.x - 0.5) * -20; // Scale up a bit more than bounds for presence
+        newPositions[baseIdx + 1] = (landmark.y - 0.5) * -15; // Invert y
+        newPositions[baseIdx + 2] = (landmark.z) * -10;
+      });
+    });
+    setPositions(newPositions);
+
+    if (pointsRef.current) {
+      pointsRef.current.geometry.attributes.position.needsUpdate = true;
+    }
+  });
+
+  return (
+    <Points ref={pointsRef} positions={positions} stride={3}>
+      <PointMaterial
+        transparent
+        color="#ffffff"
+        size={0.15}
+        sizeAttenuation={true}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </Points>
+  );
+};
+
+const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResults: Results | null }) => {
   const [localSpheres, setLocalSpheres] = useState<Map<string, LocalSphere>>(new Map());
 
   useEffect(() => {
@@ -148,7 +214,8 @@ const Experience = ({ isRunning }: { isRunning: boolean }) => {
         <pointLight position={[10, 10, 10]} intensity={1.5} />
         <spotLight position={[-10, 20, 10]} angle={0.15} penumbra={1} intensity={2} decay={2} castShadow />
         
-        <Simulation spheres={localSpheres} isRunning={isRunning} />
+        <Simulation spheres={localSpheres} isRunning={isRunning} handResults={handResults} />
+        <HandVisualizer results={handResults} />
         
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
         <Environment preset="night" />

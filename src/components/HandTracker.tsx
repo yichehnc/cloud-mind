@@ -5,9 +5,10 @@ import { motion } from 'motion/react';
 
 interface HandTrackerProps {
   onPinch: (size: number) => void;
+  onLandmarks: (results: Results) => void;
 }
 
-const HandTracker: React.FC<HandTrackerProps> = ({ onPinch }) => {
+const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isCurrentlyPinching, setIsCurrentlyPinching] = useState(false);
@@ -32,6 +33,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch }) => {
 
     hands.onResults((results: Results) => {
       if (!activeRef.current) return;
+      onLandmarks(results);
 
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const landmarks = results.multiHandLandmarks[0];
@@ -100,7 +102,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch }) => {
       camera.stop();
       hands.close();
     };
-  }, [onPinch]);
+  }, [onPinch, onLandmarks]);
 
   return (
     <div className="absolute bottom-6 right-6 w-56 h-40 bg-[#111] border border-white/20 rounded-lg overflow-hidden flex flex-col z-50 shadow-2xl">
