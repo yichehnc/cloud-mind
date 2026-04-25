@@ -10,7 +10,7 @@ interface HandTrackerProps {
 
 // Module-level singleton to avoid Emscripten double-initialization issues in React Strict Mode
 let handsInstance: Hands | null = null;
-let initializePromise: Promise<Hands> | null = null;
+let initializePromise: Promise<void> | null = null;
 
 const getHandsInstance = async (): Promise<Hands> => {
   if (!handsInstance) {
@@ -26,10 +26,11 @@ const getHandsInstance = async (): Promise<Hands> => {
   }
   
   if (!initializePromise) {
-    initializePromise = handsInstance.initialize().then(() => handsInstance!);
+    initializePromise = handsInstance.initialize();
   }
   
-  return initializePromise;
+  await initializePromise;
+  return handsInstance;
 };
 
 const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
@@ -117,19 +118,24 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
           height: 480,
         });
 
+        console.log("Starting camera");
         camera.start().then(() => {
+          console.log("Camera started successfully");
           if (isEffectActive && activeRef.current) setIsLoaded(true);
         }).catch((err: Error) => {
           console.error("Camera start error:", err);
           if (isEffectActive && activeRef.current) {
-            setPermissionError(err.name === 'NotAllowedError' ? 'Permission Denied' : 'Camera Error');
+            setPermissionError(err.name === 'NotAllowedError' ? 'Permission Denied' : 'Camera Error: ' + err.message);
           }
         });
         
         // Store camera locally to stop it cleanly inside the useEffect cleanup
         cameraRef.current = camera;
-      } catch (err) {
+      } catch (err: any) {
         console.error("Hands initialize error", err);
+        if (isEffectActive && activeRef.current) {
+           setPermissionError("Init Error: " + err.message);
+        }
       }
     };
 
