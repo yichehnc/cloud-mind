@@ -62,7 +62,6 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
           outlineWidth={0.01}
           outlineColor="#000000"
           fillOpacity={0.8}
-          transparent
           onBeforeRender={(renderer, scene, camera, geometry, material) => {
             if (meshRef.current) {
               const time = performance.now() * 0.002;

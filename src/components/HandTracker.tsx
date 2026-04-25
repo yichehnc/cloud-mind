@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Hands, Results } from '@mediapipe/hands';
+import { Hands, Results, VERSION } from '@mediapipe/hands';
 import { Camera } from '@mediapipe/camera_utils';
 import { motion } from 'motion/react';
 
@@ -7,6 +7,30 @@ interface HandTrackerProps {
   onPinch: (size: number) => void;
   onLandmarks: (results: Results) => void;
 }
+
+// Module-level singleton to avoid Emscripten double-initialization issues in React Strict Mode
+let handsInstance: Hands | null = null;
+let initializePromise: Promise<Hands> | null = null;
+
+const getHandsInstance = async (): Promise<Hands> => {
+  if (!handsInstance) {
+    handsInstance = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@${VERSION}/${file}`,
+    });
+    handsInstance.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+  }
+  
+  if (!initializePromise) {
+    initializePromise = handsInstance.initialize().then(() => handsInstance!);
+  }
+  
+  return initializePromise;
+};
 
 const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -17,103 +41,112 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
   const [retryCount, setRetryCount] = useState(0);
   const lastStateRef = useRef(false);
   const activeRef = useRef(true);
+  const cameraRef = useRef<Camera | null>(null);
 
   useEffect(() => {
     activeRef.current = true;
     setPermissionError(null);
     if (!videoRef.current) return;
 
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-    });
+    let isEffectActive = true;
 
-    hands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-
-    hands.onResults((results: Results) => {
-      if (!activeRef.current) return;
-      onLandmarks(results);
-
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-        const thumbTip = landmarks[4];
-        const indexTip = landmarks[8];
-
-        const pinchDist = Math.sqrt(
-          Math.pow(thumbTip.x - indexTip.x, 2) +
-          Math.pow(thumbTip.y - indexTip.y, 2) +
-          Math.pow(thumbTip.z - indexTip.z, 2)
-        );
-
-        const currentPinch = pinchDist < 0.05;
+    const init = async () => {
+      try {
+        const hands = await getHandsInstance();
         
-        // Two hand gesture for size: distance between index tips
-        let currentSize = 0.5;
-        if (results.multiHandLandmarks.length === 2) {
-          const h1 = results.multiHandLandmarks[0][8];
-          const h2 = results.multiHandLandmarks[1][8];
-          const distHands = Math.sqrt(
-            Math.pow(h1.x - h2.x, 2) +
-            Math.pow(h1.y - h2.y, 2)
-          );
-          // Map distance to size (0.1 to 1.5)
-          currentSize = Math.max(0.2, Math.min(1.5, distHands * 2.0));
-          setHandDistance(currentSize);
-        }
+        if (!isEffectActive || !activeRef.current) return;
 
-        if (currentPinch && !lastStateRef.current) {
-          onPinch(currentSize);
-        }
-        
-        if (currentPinch !== lastStateRef.current) {
-          setIsCurrentlyPinching(currentPinch);
-        }
-        
-        lastStateRef.current = currentPinch;
-      } else {
-        if (lastStateRef.current) {
-          setIsCurrentlyPinching(false);
-          lastStateRef.current = false;
-        }
-      }
-    });
+        hands.onResults((results: Results) => {
+          if (!isEffectActive || !activeRef.current) return;
+          onLandmarks(results);
 
-    const camera = new Camera(videoRef.current, {
-      onFrame: async () => {
-        if (activeRef.current && videoRef.current) {
-          try {
-            await hands.send({ image: videoRef.current });
-          } catch (e) {
-            console.error("Hands send error", e);
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+
+            const pinchDist = Math.sqrt(
+              Math.pow(thumbTip.x - indexTip.x, 2) +
+              Math.pow(thumbTip.y - indexTip.y, 2) +
+              Math.pow(thumbTip.z - indexTip.z, 2)
+            );
+
+            const currentPinch = pinchDist < 0.05;
+            
+            let currentSize = 0.5;
+            if (results.multiHandLandmarks.length === 2) {
+              const h1 = results.multiHandLandmarks[0][8];
+              const h2 = results.multiHandLandmarks[1][8];
+              const distHands = Math.sqrt(
+                Math.pow(h1.x - h2.x, 2) +
+                Math.pow(h1.y - h2.y, 2)
+              );
+              currentSize = Math.max(0.2, Math.min(1.5, distHands * 2.0));
+              setHandDistance(currentSize);
+            }
+
+            if (currentPinch && !lastStateRef.current) {
+              onPinch(currentSize);
+            }
+            
+            if (currentPinch !== lastStateRef.current) {
+              setIsCurrentlyPinching(currentPinch);
+            }
+            
+            lastStateRef.current = currentPinch;
+          } else {
+            if (lastStateRef.current) {
+              setIsCurrentlyPinching(false);
+              lastStateRef.current = false;
+            }
           }
-        }
-      },
-      width: 640,
-      height: 480,
-    });
+        });
 
-    camera.start().then(() => {
-      if (activeRef.current) setIsLoaded(true);
-    }).catch((err) => {
-      console.error("Camera start error:", err);
-      if (activeRef.current) {
-        setPermissionError(err.name === 'NotAllowedError' ? 'Permission Denied' : 'Camera Error');
+        const camera = new Camera(videoRef.current!, {
+          onFrame: async () => {
+            if (isEffectActive && activeRef.current && videoRef.current) {
+              try {
+                await hands.send({ image: videoRef.current });
+              } catch (e) {
+                // Ignore send errors when effect is tearing down
+                if (isEffectActive) console.error("Hands send error", e);
+              }
+            }
+          },
+          width: 640,
+          height: 480,
+        });
+
+        camera.start().then(() => {
+          if (isEffectActive && activeRef.current) setIsLoaded(true);
+        }).catch((err: Error) => {
+          console.error("Camera start error:", err);
+          if (isEffectActive && activeRef.current) {
+            setPermissionError(err.name === 'NotAllowedError' ? 'Permission Denied' : 'Camera Error');
+          }
+        });
+        
+        // Store camera locally to stop it cleanly inside the useEffect cleanup
+        cameraRef.current = camera;
+      } catch (err) {
+        console.error("Hands initialize error", err);
       }
-    });
+    };
+
+    init();
 
     return () => {
+      isEffectActive = false;
       activeRef.current = false;
-      camera.stop();
-      hands.close();
+      if (cameraRef.current) {
+        cameraRef.current.stop();
+        cameraRef.current = null;
+      }
     };
   }, [onPinch, onLandmarks, retryCount]);
 
   return (
-    <div className="absolute bottom-6 right-6 w-56 h-40 bg-[#111] border border-white/20 rounded-lg overflow-hidden flex flex-col z-50 shadow-2xl">
+    <div className="absolute top-28 right-10 w-56 h-40 bg-[#111] border border-white/20 rounded-lg overflow-hidden flex flex-col z-50 shadow-2xl">
       <div className="h-4 bg-[#222] flex items-center px-2 justify-between">
         <span className="text-[8px] uppercase tracking-tighter text-[#888]">
           {permissionError ? `Error: ${permissionError}` : 'Gestural Biosurface: Active'}

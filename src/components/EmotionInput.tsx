@@ -25,7 +25,7 @@ const EmotionInput: React.FC<EmotionInputProps> = ({ onAddSphere }) => {
   };
 
   return (
-    <footer className="relative z-20 h-48 px-10 py-8 flex items-end justify-between">
+    <div className="relative z-20 flex gap-12">
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
           <span className="text-[10px] uppercase tracking-widest text-[#666]">Custom Emotional Input</span>
@@ -35,11 +35,11 @@ const EmotionInput: React.FC<EmotionInputProps> = ({ onAddSphere }) => {
               value={customValue}
               onChange={(e) => setCustomValue(e.target.value)}
               placeholder="Define a new state..."
-              className="bg-white/5 border border-white/10 rounded-full px-5 py-2 text-xs text-white placeholder:text-white/20 outline-none focus:border-white/40 focus:bg-white/10 transition-all w-64"
+              className="bg-white/5 border border-white/10 rounded-full px-5 py-2 text-xs text-white placeholder:text-white/20 outline-none focus:border-white/40 focus:bg-white/10 backdrop-blur-md transition-all w-64 shadow-xl"
             />
             <button 
               type="submit"
-              className="p-2 border border-white/20 rounded-full bg-white/5 hover:bg-white text-white hover:text-black transition-all"
+              className="p-2 border border-white/20 rounded-full bg-white/5 hover:bg-white text-white hover:text-black transition-all shadow-xl"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -53,7 +53,7 @@ const EmotionInput: React.FC<EmotionInputProps> = ({ onAddSphere }) => {
               <button
                 key={emotion}
                 onClick={() => onAddSphere(emotion)}
-                className="flex items-center gap-2 px-4 py-2 border border-white/20 rounded-full bg-white/5 hover:bg-white hover:text-black transition-all group"
+                className="flex items-center gap-2 px-4 py-2 border border-white/20 rounded-full bg-white/5 hover:bg-white hover:text-black transition-all group backdrop-blur-md shadow-xl"
               >
                 <div 
                   className="w-2 h-2 rounded-full transition-transform group-hover:scale-125" 
@@ -65,26 +65,7 @@ const EmotionInput: React.FC<EmotionInputProps> = ({ onAddSphere }) => {
           </div>
         </div>
       </div>
-
-      <div className="w-64">
-        <div className="flex justify-between mb-2">
-          <span className="text-[9px] uppercase tracking-widest text-[#666]">Fluid Density</span>
-          <span className="text-[9px] uppercase tracking-widest text-white">0.42 Kinetic</span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <div className="flex gap-[2px]">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div 
-                key={i} 
-                className="h-4 w-2 bg-white/10"
-                style={{ opacity: 0.1 + (i < 8 ? i * 0.1 : 0) }}
-              />
-            ))}
-          </div>
-          <p className="text-[9px] text-[#444] leading-tight">Velocity reduces as sphere count increases to stabilize space-time coherence.</p>
-        </div>
-      </div>
-    </footer>
+    </div>
   );
 };
 

@@ -128,6 +128,12 @@ export default function App() {
       <main className="absolute inset-0 z-10 overflow-hidden bg-black">
         <Experience isRunning={isRunning} handResults={handResults} />
 
+        {user && (
+          <div className="absolute top-24 left-10 z-[50] pointer-events-auto">
+            <EmotionInput onAddSphere={addSphere} />
+          </div>
+        )}
+
         {!user && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px] z-20">
             <div className="text-center">
@@ -172,8 +178,6 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
-
-      {user && <EmotionInput onAddSphere={addSphere} />}
 
       {/* Control Buttons */}
       <div className="fixed bottom-8 left-10 z-50 flex gap-4">
