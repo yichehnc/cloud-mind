@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -190,19 +190,17 @@ if (dist < minDist) {
 
 
 const BoundsCube = () => {
-  const ref = useRef<THREE.LineSegments>(null);
-  const geo = useMemo(() => {
-    const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(BOUNDS * 2 + 4, BOUNDS * 2 + 4, BOUNDS * 2 + 4));
-    return edges;
-  }, []);
+  const geo = useMemo(() =>
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(BOUNDS * 2 + 4, BOUNDS * 2 + 4, BOUNDS * 2 + 4))
+  , []);
 
-  useEffect(() => {
-    ref.current?.computeLineDistances();
+  const callbackRef = useCallback((node: THREE.LineSegments | null) => {
+    if (node) node.computeLineDistances();
   }, []);
 
   return (
-    <lineSegments ref={ref} geometry={geo}>
-      <lineDashedMaterial color="#ffffff" dashSize={0.4} gapSize={0.4} />
+    <lineSegments ref={callbackRef} geometry={geo}>
+      <lineDashedMaterial color="#ffffff" dashSize={0.6} gapSize={0.6} />
     </lineSegments>
   );
 };
