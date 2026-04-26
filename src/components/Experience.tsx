@@ -25,19 +25,13 @@ type BlendConfig = {
   dissolve: boolean;
 };
 
-const BLEND_CONFIGS: BlendConfig[] = [
-  { blending: THREE.AdditiveBlending,      dissolve: false }, // Linear Dodge
-  { blending: THREE.SubtractiveBlending,   dissolve: false }, // Subtract
-  { blending: THREE.MultiplyBlending,      dissolve: false }, // Soft Light
-  { blending: THREE.NormalBlending,        dissolve: false }, // Luminous
-  { blending: THREE.NormalBlending,        dissolve: true  }, // Dissolve
-  {                                                           // Difference
-    blending: THREE.CustomBlending,
-    blendEquation: THREE.ReverseSubtractEquation,
-    blendSrc: THREE.SrcAlphaFactor,
-    blendDst: THREE.OneMinusSrcAlphaFactor,
-    dissolve: false,
-  },
+const DEFAULT_BLEND: BlendConfig = { blending: THREE.AdditiveBlending, dissolve: false };
+
+// Only non-darkening modes — no subtract/multiply/difference which can produce black
+const RANDOM_BLEND_CONFIGS: BlendConfig[] = [
+  { blending: THREE.AdditiveBlending, dissolve: false }, // Linear Dodge
+  { blending: THREE.NormalBlending,   dissolve: false }, // Luminous
+  { blending: THREE.NormalBlending,   dissolve: true  }, // Dissolve
 ];
 
 function hashId(id: string): number {
@@ -50,7 +44,11 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
 
-  const blend = useMemo(() => BLEND_CONFIGS[hashId(sphere.id) % BLEND_CONFIGS.length], [sphere.id]);
+  const blend = useMemo(() => {
+    const h = hashId(sphere.id);
+    // 70% default additive, 30% random from safe modes
+    return (h % 10) < 3 ? RANDOM_BLEND_CONFIGS[h % RANDOM_BLEND_CONFIGS.length] : DEFAULT_BLEND;
+  }, [sphere.id]);
 
   const uniforms = useMemo(() => ({
     uColor:    { value: new THREE.Color(sphere.color) },
