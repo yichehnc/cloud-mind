@@ -151,6 +151,24 @@ if (dist < minDist) {
 };
 
 
+const BoundsCube = () => {
+  const ref = useRef<THREE.LineSegments>(null);
+  const geo = useMemo(() => {
+    const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(BOUNDS * 2 + 4, BOUNDS * 2 + 4, BOUNDS * 2 + 4));
+    return edges;
+  }, []);
+
+  useEffect(() => {
+    ref.current?.computeLineDistances();
+  }, []);
+
+  return (
+    <lineSegments ref={ref} geometry={geo}>
+      <lineDashedMaterial color="#ffffff" transparent opacity={0.12} dashSize={0.4} gapSize={0.4} />
+    </lineSegments>
+  );
+};
+
 const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResults: Results | null }) => {
   const [localSpheres, setLocalSpheres] = useState<Map<string, LocalSphere>>(new Map());
 
@@ -197,10 +215,7 @@ const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResult
           <Environment preset="night" />
         </Suspense>
         
-        <mesh>
-          <boxGeometry args={[BOUNDS * 2 + 4, BOUNDS * 2 + 4, BOUNDS * 2 + 4]} />
-          <meshStandardMaterial color="#ffffff" wireframe transparent opacity={0.25} />
-        </mesh>
+        <BoundsCube />
       </Canvas>
     </div>
   );
