@@ -23,13 +23,19 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
 
   const uniforms = useMemo(() => ({
     uColor: { value: new THREE.Color(sphere.color) },
-    uTime: { value: 0 }
+    uTime: { value: 0 },
+    uFade: { value: 1 },
   }), [sphere.color]);
 
   useFrame((state) => {
     if (groupRef.current) groupRef.current.position.copy(sphere.pos);
     const mat = meshRef.current?.material as THREE.ShaderMaterial | undefined;
-    if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = state.clock.elapsedTime;
+    if (mat?.uniforms) {
+      mat.uniforms.uTime.value = state.clock.elapsedTime;
+      // Fade out as sphere approaches any wall (fade zone = 3 units)
+      const nearest = BOUNDS - Math.max(Math.abs(sphere.pos.x), Math.abs(sphere.pos.y), Math.abs(sphere.pos.z));
+      mat.uniforms.uFade.value = Math.max(0, Math.min(1, nearest / 3));
+    }
   });
 
   return (

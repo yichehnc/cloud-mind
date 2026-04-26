@@ -22,20 +22,21 @@ export const sphereFragmentShader = `
   
   uniform vec3 uColor;
   uniform float uTime;
-  
+  uniform float uFade;
+
   void main() {
     vec3 normal = normalize(vNormal);
     vec3 viewDir = normalize(vViewPosition);
-    
+
     // Fresnel effect for a glowing rim
     float fresnel = pow(1.0 - dot(normal, viewDir), 3.0);
-    
+
     // Subtle pulse
     float pulse = sin(uTime * 3.0) * 0.15 + 0.85;
-    
+
     vec3 baseColor = uColor * pulse;
     vec3 finalColor = mix(baseColor, vec3(1.0), fresnel * 0.2);
-    
-    gl_FragColor = vec4(finalColor, 0.9);
+
+    gl_FragColor = vec4(finalColor, 0.9 * uFade);
   }
 `;
