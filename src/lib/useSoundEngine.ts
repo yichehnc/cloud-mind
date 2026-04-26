@@ -210,22 +210,6 @@ const SOUNDS: Record<string, SoundFn> = {
     lfo.start(now); lfo.stop(now + 0.8);
   },
 
-  Awe: (ctx, now, out, size) => {
-    // Harmonic series bell — ethereal shimmer, high partials
-    const root = (220 + Math.random() * 40) * Math.pow(0.5 / size, 0.2);
-    [1, 2, 3, 4, 6].forEach((harmonic, i) => {
-      const osc = makeOsc(ctx, root * harmonic, 'sine', (Math.random() - 0.5) * 4);
-      const g = makeGain(ctx, 0);
-      const level = 0.09 / (i + 1);
-      g.gain.setValueAtTime(0, now);
-      g.gain.linearRampToValueAtTime(level, now + 0.01 + i * 0.015);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 1.0 - i * 0.1);
-      const shelf = ctx.createBiquadFilter();
-      shelf.type = 'highshelf'; shelf.frequency.value = 4000; shelf.gain.value = 4;
-      osc.connect(shelf); shelf.connect(g); g.connect(out);
-      osc.start(now + i * 0.015); osc.stop(now + 1.1);
-    });
-  },
 };
 
 export function useSoundEngine() {
@@ -332,7 +316,7 @@ export function useSoundEngine() {
 
     const fn = SOUNDS[emotion];
     if (fn) fn(ctx, now, sizeGain, size);
-    else SOUNDS['Awe'](ctx, now, sizeGain, size);
+    else SOUNDS['Happy'](ctx, now, sizeGain, size);
   }, [getCtx]);
 
   return { play };

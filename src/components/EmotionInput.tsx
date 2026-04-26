@@ -15,7 +15,6 @@ const EMOTION_PRESETS: Record<string, string> = {
   'Love':       '#ec4899',
   'Melancholy': '#7e22ce',
   'Fear':       '#4338ca',
-  'Awe':        '#06b6d4',
 };
 
 const CUSTOM_PALETTE = [

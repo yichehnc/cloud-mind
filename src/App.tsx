@@ -205,7 +205,7 @@ export default function App() {
       <div className="absolute right-10 bottom-8 z-50 flex items-center gap-4 pointer-events-none">
         <div className="flex flex-col items-end">
           <span className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-medium leading-none">Cloud Mind</span>
-          <span className="text-[9px] uppercase tracking-[0.2em] text-white/10 mt-1">Digital Ephemeral Architecture</span>
+          <span className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-medium leading-none mt-1">Yichen Cao 2026</span>
         </div>
         <div className="w-px h-6 bg-white/10"></div>
         <span className="text-[9px] text-white/20 font-mono tracking-tighter">V1.0.4.C</span>
