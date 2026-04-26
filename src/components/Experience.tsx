@@ -164,7 +164,7 @@ const BoundsCube = () => {
 
   return (
     <lineSegments ref={ref} geometry={geo}>
-      <lineDashedMaterial color="#ffffff" transparent opacity={0.12} dashSize={0.4} gapSize={0.4} />
+      <lineDashedMaterial color="#ffffff" dashSize={0.4} gapSize={0.4} />
     </lineSegments>
   );
 };
