@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail, Points, PointMaterial, Text } from '@react-three/drei';
+import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { Results } from '@mediapipe/hands';
@@ -154,55 +154,6 @@ if (dist < minDist) {
   );
 };
 
-const HandVisualizer = ({ results }: { results: Results | null }) => {
-  const pointsRef = useRef<THREE.Points>(null);
-  const posAttrRef = useRef<THREE.BufferAttribute>(null);
-
-  // Pre-allocate buffer for 2 hands, 21 points each
-  const positions = useMemo(() => new Float32Array(21 * 2 * 3), []);
-
-  useFrame(() => {
-    if (!results || !results.multiHandLandmarks || !posAttrRef.current) return;
-
-    // Reset positions to far away if hands are not detected to "hide" them
-    positions.fill(1000);
-
-    results.multiHandLandmarks.forEach((landmarks, handIndex) => {
-      if (handIndex >= 2) return;
-      landmarks.forEach((landmark, i) => {
-        const baseIdx = (handIndex * 21 + i) * 3;
-        // Map [0, 1] to roughly [-BOUNDS, BOUNDS]
-        positions[baseIdx] = (landmark.x - 0.5) * -20;
-        positions[baseIdx + 1] = (landmark.y - 0.5) * -15;
-        positions[baseIdx + 2] = (landmark.z) * -10;
-      });
-    });
-
-    posAttrRef.current.needsUpdate = true;
-  });
-
-  return (
-    <Points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          ref={posAttrRef}
-          attach="attributes-position"
-          count={21 * 2}
-          array={positions}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <PointMaterial
-        transparent
-        color="#ffffff"
-        size={0.15}
-        sizeAttenuation={true}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </Points>
-  );
-};
 
 const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResults: Results | null }) => {
   const [localSpheres, setLocalSpheres] = useState<Map<string, LocalSphere>>(new Map());
@@ -250,7 +201,6 @@ const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResult
         
         <Suspense fallback={null}>
           <Simulation spheres={localSpheres} isRunning={isRunning} handResults={handResults} />
-          <HandVisualizer results={handResults} />
           <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
           <Environment preset="night" />
         </Suspense>

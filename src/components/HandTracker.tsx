@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Hands, Results, VERSION } from '@mediapipe/hands';
+import { Hands, Results, VERSION, HAND_CONNECTIONS } from '@mediapipe/hands';
 import { Camera } from '@mediapipe/camera_utils';
+import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 import { motion } from 'motion/react';
 
 interface HandTrackerProps {
@@ -8,7 +9,6 @@ interface HandTrackerProps {
   onLandmarks: (results: Results) => void;
 }
 
-// Module-level singleton to avoid Emscripten double-initialization issues in React Strict Mode
 let handsInstance: Hands | null = null;
 let initializePromise: Promise<void> | null = null;
 
@@ -24,17 +24,16 @@ const getHandsInstance = async (): Promise<Hands> => {
       minTrackingConfidence: 0.7,
     });
   }
-  
   if (!initializePromise) {
     initializePromise = handsInstance.initialize();
   }
-  
   await initializePromise;
   return handsInstance;
 };
 
 const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isCurrentlyPinching, setIsCurrentlyPinching] = useState(false);
@@ -54,12 +53,31 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
     const init = async () => {
       try {
         const hands = await getHandsInstance();
-        
         if (!isEffectActive || !activeRef.current) return;
 
         hands.onResults((results: Results) => {
           if (!isEffectActive || !activeRef.current) return;
           onLandmarks(results);
+
+          // Draw skeleton on biosurface canvas
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              // Mirror to match mirrored video
+              ctx.save();
+              ctx.scale(-1, 1);
+              ctx.translate(-canvas.width, 0);
+              if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                  drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#22c55e', lineWidth: 2 });
+                  drawLandmarks(ctx, landmarks, { color: '#ff3333', fillColor: '#cc0000', lineWidth: 1, radius: 3 });
+                }
+              }
+              ctx.restore();
+            }
+          }
 
           if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const landmarks = results.multiHandLandmarks[0];
@@ -72,8 +90,18 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
               Math.pow(thumbTip.z - indexTip.z, 2)
             );
 
-            const currentPinch = pinchDist < 0.05;
-            
+            // Normalize by palm size (wrist→index MCP) to ignore hand distance from camera
+            const wrist = landmarks[0];
+            const indexMCP = landmarks[5];
+            const palmSize = Math.sqrt(
+              Math.pow(wrist.x - indexMCP.x, 2) +
+              Math.pow(wrist.y - indexMCP.y, 2)
+            ) || 0.1;
+            const normalizedPinch = pinchDist / palmSize;
+
+            const wasPinching = lastStateRef.current;
+            const currentPinch = wasPinching ? normalizedPinch < 0.45 : normalizedPinch < 0.28;
+
             let currentSize = 0.5;
             if (results.multiHandLandmarks.length === 2) {
               const h1 = results.multiHandLandmarks[0][8];
@@ -89,13 +117,15 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
             if (currentPinch && !lastStateRef.current) {
               onPinch(currentSize);
             }
-            
             if (currentPinch !== lastStateRef.current) {
               setIsCurrentlyPinching(currentPinch);
             }
-            
             lastStateRef.current = currentPinch;
           } else {
+            if (canvasRef.current) {
+              const ctx = canvasRef.current.getContext('2d');
+              ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            }
             if (lastStateRef.current) {
               setIsCurrentlyPinching(false);
               lastStateRef.current = false;
@@ -109,8 +139,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
               try {
                 await hands.send({ image: videoRef.current });
               } catch (e) {
-                // Ignore send errors when effect is tearing down
-                if (isEffectActive) console.error("Hands send error", e);
+                if (isEffectActive) console.error('Hands send error', e);
               }
             }
           },
@@ -118,23 +147,18 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
           height: 480,
         });
 
-        console.log("Starting camera");
         camera.start().then(() => {
-          console.log("Camera started successfully");
           if (isEffectActive && activeRef.current) setIsLoaded(true);
         }).catch((err: Error) => {
-          console.error("Camera start error:", err);
           if (isEffectActive && activeRef.current) {
             setPermissionError(err.name === 'NotAllowedError' ? 'Permission Denied' : 'Camera Error: ' + err.message);
           }
         });
-        
-        // Store camera locally to stop it cleanly inside the useEffect cleanup
+
         cameraRef.current = camera;
       } catch (err: any) {
-        console.error("Hands initialize error", err);
         if (isEffectActive && activeRef.current) {
-           setPermissionError("Init Error: " + err.message);
+          setPermissionError('Init Error: ' + err.message);
         }
       }
     };
@@ -158,7 +182,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
           {permissionError ? `Error: ${permissionError}` : 'Gestural Biosurface: Active'}
         </span>
         <div className="flex gap-1">
-          <div className={`w-1 h-1 rounded-full ${permissionError ? 'bg-red-500 animate-pulse' : (isLoaded ? 'bg-green-500' : 'bg-yellow-500')}`}></div>
+          <div className={`w-1 h-1 rounded-full ${permissionError ? 'bg-red-500 animate-pulse' : (isLoaded ? 'bg-green-500' : 'bg-yellow-500')}`} />
         </div>
       </div>
       <div className="flex-grow flex items-center justify-center relative bg-black/40">
@@ -170,8 +194,8 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
         {permissionError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center z-10 bg-black/80 backdrop-blur-sm">
             <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider mb-2">Access Required</span>
-            <span className="text-white/40 text-[8px] leading-relaxed mb-4">Please enable camera to interact with the space</span>
-            <button 
+            <span className="text-white/40 text-[8px] leading-relaxed mb-4">Enable camera to interact with the space</span>
+            <button
               onClick={() => setRetryCount(prev => prev + 1)}
               className="px-3 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded text-[9px] text-white uppercase tracking-widest transition-colors"
             >
@@ -179,16 +203,13 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
             </button>
           </div>
         )}
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover scale-x-[-1] opacity-60 grayscale brightness-125"
-          playsInline
-        />
+        <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-60 grayscale brightness-125" playsInline />
+        <canvas ref={canvasRef} width={640} height={480} className="absolute inset-0 w-full h-full object-cover" />
         {isCurrentlyPinching && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-             <div className="px-3 py-1 bg-green-500/80 backdrop-blur-sm rounded text-[9px] font-mono font-bold text-white uppercase tracking-wider animate-pulse">
-               Release Sphere
-             </div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="px-3 py-1 bg-green-500/80 backdrop-blur-sm rounded text-[9px] font-mono font-bold text-white uppercase tracking-wider animate-pulse">
+              Release Sphere
+            </div>
           </div>
         )}
       </div>
@@ -198,10 +219,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
           <span className="text-[9px] text-white font-mono">{handDistance.toFixed(2)}x</span>
         </div>
         <div className="w-full bg-white/5 h-[2px] rounded-full overflow-hidden">
-          <motion.div 
-            animate={{ width: `${(handDistance / 1.5) * 100}%` }}
-            className="bg-white h-full"
-          />
+          <motion.div animate={{ width: `${(handDistance / 1.5) * 100}%` }} className="bg-white h-full" />
         </div>
       </div>
     </div>

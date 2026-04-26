@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, login, handleFirestoreError, OperationType } from './lib/firebase';
 import Experience from './components/Experience';
-import EmotionInput, { EMOTION_PRESETS } from './components/EmotionInput';
+import EmotionInput, { EMOTION_PRESETS, getCustomEmotionColor } from './components/EmotionInput';
 import HandTracker from './components/HandTracker';
 import { Power, PowerOff } from 'lucide-react';
 import { Results } from '@mediapipe/hands';
@@ -47,7 +47,7 @@ export default function App() {
     if (Date.now() - lastAddRef.current < 500) return;
     lastAddRef.current = Date.now();
 
-    const color = EMOTION_PRESETS[emotion] || stringToColor(emotion);
+    const color = EMOTION_PRESETS[emotion] || getCustomEmotionColor(emotion) || stringToColor(emotion);
     
     // Randomized starting conditions
     const sphereData = {
@@ -98,7 +98,7 @@ export default function App() {
       {/* Header Navigation */}
       <header className="absolute top-0 left-0 right-0 z-20 flex justify-between items-start p-10 pointer-events-none">
         <div className="flex flex-col">
-          <p className="text-[10px] uppercase tracking-[0.3em] font-medium text-white/40">Emotion / Kinetic Interaction Lab</p>
+          <p className="text-[10px] uppercase tracking-[0.3em] font-medium text-white/40">Cloud Mind</p>
         </div>
         <div className="flex gap-12 text-[11px] uppercase tracking-widest font-medium pointer-events-auto">
           {!user ? (
@@ -129,7 +129,7 @@ export default function App() {
         <Experience isRunning={isRunning} handResults={handResults} />
 
         {user && (
-          <div className="absolute top-24 left-10 z-[50] pointer-events-auto">
+          <div className="absolute top-24 bottom-8 left-10 z-[50] pointer-events-auto">
             <EmotionInput onAddSphere={addSphere} />
           </div>
         )}

@@ -1,69 +1,114 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Send, Sparkles } from 'lucide-react';
+import { Send } from 'lucide-react';
 
 interface EmotionInputProps {
   onAddSphere: (emotion: string) => void;
 }
 
 const EMOTION_PRESETS: Record<string, string> = {
-  'Happy': '#dc2626', // red-600
-  'Melancholy': '#7e22ce', // purple-700
-  'Calm': '#3b82f6', // blue-500
-  'Anxiety': '#fb923c', // orange-400
+  'Happy':      '#eab308',
+  'Joyful':     '#ef4444',
+  'Anger':      '#ff0000',
+  'Calm':       '#3b82f6',
+  'Anxiety':    '#f97316',
+  'Jealous':    '#22c55e',
+  'Love':       '#ec4899',
+  'Melancholy': '#7e22ce',
+  'Fear':       '#4f46e5',
 };
+
+const CUSTOM_PALETTE = [
+  '#f43f5e', '#14b8a6', '#a78bfa', '#fb923c', '#34d399',
+  '#60a5fa', '#e879f9', '#fbbf24', '#f87171', '#4ade80',
+  '#c084fc', '#38bdf8', '#fb7185', '#a3e635', '#fdba74',
+];
+
+const STORAGE_KEY = 'cloud-mind-custom-emotions';
+
+type CustomEmotion = { name: string; color: string };
+
+export function getCustomEmotionColor(name: string): string | undefined {
+  try {
+    const stored: CustomEmotion[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return stored.find(e => e.name === name)?.color;
+  } catch { return undefined; }
+}
 
 const EmotionInput: React.FC<EmotionInputProps> = ({ onAddSphere }) => {
   const [customValue, setCustomValue] = useState('');
+  const [customEmotions, setCustomEmotions] = useState<CustomEmotion[]>(() => {
+    try {
+      const stored: CustomEmotion[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const clean = stored.filter(e => e.name?.trim());
+      if (clean.length !== stored.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+      return clean;
+    } catch { return []; }
+  });
 
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (customValue.trim()) {
-      onAddSphere(customValue.trim());
-      setCustomValue('');
+    const val = customValue.trim();
+    if (!val) return;
+
+    let updated = customEmotions;
+    const exists = customEmotions.some(e => e.name === val) || val in EMOTION_PRESETS;
+    if (!exists) {
+      const color = CUSTOM_PALETTE[customEmotions.length % CUSTOM_PALETTE.length];
+      updated = [...customEmotions, { name: val, color }];
+      setCustomEmotions(updated);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     }
+
+    onAddSphere(val);
+    setCustomValue('');
   };
 
-  return (
-    <div className="relative z-20 flex gap-12">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <span className="text-[10px] uppercase tracking-widest text-[#666]">Custom Emotional Input</span>
-          <form onSubmit={handleCustomSubmit} className="flex gap-2">
-            <input 
-              type="text"
-              value={customValue}
-              onChange={(e) => setCustomValue(e.target.value)}
-              placeholder="Define a new state..."
-              className="bg-white/5 border border-white/10 rounded-full px-5 py-2 text-xs text-white placeholder:text-white/20 outline-none focus:border-white/40 focus:bg-white/10 backdrop-blur-md transition-all w-64 shadow-xl"
-            />
-            <button 
-              type="submit"
-              className="p-2 border border-white/20 rounded-full bg-white/5 hover:bg-white text-white hover:text-black transition-all shadow-xl"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-        </div>
+  const allEmotions = [
+    ...Object.entries(EMOTION_PRESETS).map(([name, color]) => ({ name, color })),
+    ...customEmotions,
+  ];
 
-        <div className="flex flex-col gap-2">
-          <span className="text-[10px] uppercase tracking-widest text-[#666]">Emotional Spectrum Palette</span>
-          <div className="flex gap-4">
-            {Object.keys(EMOTION_PRESETS).map((emotion) => (
-              <button
-                key={emotion}
-                onClick={() => onAddSphere(emotion)}
-                className="flex items-center gap-2 px-4 py-2 border border-white/20 rounded-full bg-white/5 hover:bg-white hover:text-black transition-all group backdrop-blur-md shadow-xl"
-              >
-                <div 
-                  className="w-2 h-2 rounded-full transition-transform group-hover:scale-125" 
-                  style={{ backgroundColor: EMOTION_PRESETS[emotion] }}
-                />
-                <span className="text-xs font-serif italic text-[#e0e0e0] group-hover:text-black">{emotion}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+  return (
+    <div className="flex flex-col w-44 h-[calc(100vh-9rem)] max-h-[600px]">
+      <span className="text-[9px] uppercase tracking-[0.3em] text-white/20 mb-3">Emotion Catalogue</span>
+
+      <div
+        className="flex-1 overflow-y-auto flex flex-col gap-2 pr-1"
+        style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.15) transparent' }}
+      >
+        {allEmotions.map(({ name, color }) => (
+          <button
+            key={name}
+            onClick={() => onAddSphere(name)}
+            className="flex items-center gap-2 px-4 py-2 border border-white/20 rounded-full bg-white/5 hover:bg-white hover:text-black transition-all group backdrop-blur-md shadow-xl w-full"
+          >
+            <div
+              className="w-2 h-2 rounded-full flex-shrink-0 transition-transform group-hover:scale-125"
+              style={{ backgroundColor: color }}
+            />
+            <span className="text-xs font-serif italic text-[#e0e0e0] group-hover:text-black truncate">
+              {name}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-white/10">
+        <form onSubmit={handleCustomSubmit} className="flex gap-2">
+          <input
+            type="text"
+            value={customValue}
+            onChange={(e) => setCustomValue(e.target.value)}
+            placeholder="New state..."
+            className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-1.5 text-[10px] text-white placeholder:text-white/20 outline-none focus:border-white/30 transition-colors"
+          />
+          <button
+            type="submit"
+            className="p-1.5 border border-white/20 rounded bg-white/5 hover:bg-white text-white hover:text-black transition-all flex-shrink-0"
+          >
+            <Send className="w-3 h-3" />
+          </button>
+        </form>
       </div>
     </div>
   );
