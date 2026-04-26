@@ -155,7 +155,7 @@ const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResult
   const [localSpheres, setLocalSpheres] = useState<Map<string, LocalSphere>>(new Map());
 
   useEffect(() => {
-    const q = query(collection(db, 'spheres'), orderBy('createdAt', 'desc'), limit(300));
+    const q = query(collection(db, 'spheres'), orderBy('createdAt', 'desc'), limit(147));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setLocalSpheres(prev => {
         const next = new Map(prev);
