@@ -17,22 +17,53 @@ interface LocalSphere extends SphereData {
   vel: THREE.Vector3;
 }
 
+type BlendConfig = {
+  blending: THREE.Blending;
+  blendEquation?: THREE.BlendingEquation;
+  blendSrc?: THREE.BlendingSrcFactor;
+  blendDst?: THREE.BlendingDstFactor;
+  dissolve: boolean;
+};
+
+const BLEND_CONFIGS: BlendConfig[] = [
+  { blending: THREE.AdditiveBlending,      dissolve: false }, // Linear Dodge
+  { blending: THREE.SubtractiveBlending,   dissolve: false }, // Subtract
+  { blending: THREE.MultiplyBlending,      dissolve: false }, // Soft Light
+  { blending: THREE.NormalBlending,        dissolve: false }, // Luminous
+  { blending: THREE.NormalBlending,        dissolve: true  }, // Dissolve
+  {                                                           // Difference
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.ReverseSubtractEquation,
+    blendSrc: THREE.SrcAlphaFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    dissolve: false,
+  },
+];
+
+function hashId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
 const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
 
+  const blend = useMemo(() => BLEND_CONFIGS[hashId(sphere.id) % BLEND_CONFIGS.length], [sphere.id]);
+
   const uniforms = useMemo(() => ({
-    uColor: { value: new THREE.Color(sphere.color) },
-    uTime: { value: 0 },
-    uFade: { value: 1 },
-  }), [sphere.color]);
+    uColor:    { value: new THREE.Color(sphere.color) },
+    uTime:     { value: 0 },
+    uFade:     { value: 1 },
+    uDissolve: { value: blend.dissolve ? 1 : 0 },
+  }), [sphere.color, blend.dissolve]);
 
   useFrame((state) => {
     if (groupRef.current) groupRef.current.position.copy(sphere.pos);
     const mat = meshRef.current?.material as THREE.ShaderMaterial | undefined;
     if (mat?.uniforms) {
       mat.uniforms.uTime.value = state.clock.elapsedTime;
-      // Fade out as sphere approaches any wall (fade zone = 3 units)
       const nearest = BOUNDS - Math.max(Math.abs(sphere.pos.x), Math.abs(sphere.pos.y), Math.abs(sphere.pos.z));
       mat.uniforms.uFade.value = Math.max(0, Math.min(1, nearest / 3));
     }
@@ -53,7 +84,10 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
             fragmentShader={sphereFragmentShader}
             uniforms={uniforms}
             transparent
-            blending={THREE.AdditiveBlending}
+            blending={blend.blending}
+            blendEquation={blend.blendEquation}
+            blendSrc={blend.blendSrc}
+            blendDst={blend.blendDst}
             depthWrite={false}
           />
         </mesh>
