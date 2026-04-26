@@ -8,6 +8,7 @@ import { Power, PowerOff } from 'lucide-react';
 import { Results } from '@mediapipe/hands';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { useSoundEngine } from './lib/useSoundEngine';
 
 // Help generate a hex color from a string
 const stringToColor = (str: string) => {
@@ -31,6 +32,7 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(true);
   const [handResults, setHandResults] = useState<Results | null>(null);
   const lastAddRef = useRef(0);
+  const { play } = useSoundEngine();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -66,6 +68,7 @@ export default function App() {
 
     try {
       await addDoc(collection(db, 'spheres'), sphereData);
+      play(emotion);
       setCurrentEmotion(emotion);
       setShowNotification(true);
       setTimeout(() => setShowNotification(false), 2000);
