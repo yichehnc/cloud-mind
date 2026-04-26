@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail, Text } from '@react-three/drei';
+import { OrbitControls, Stars, PerspectiveCamera, Environment, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { Results } from '@mediapipe/hands';
@@ -17,32 +17,58 @@ interface LocalSphere extends SphereData {
   vel: THREE.Vector3;
 }
 
+const NUM_GHOSTS = 14;
+
 const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
+  const ghostRefs = useRef<THREE.Mesh[]>([]);
+  const posHistory = useRef<THREE.Vector3[]>(
+    Array.from({ length: NUM_GHOSTS }, () => sphere.pos.clone())
+  );
 
   const uniforms = useMemo(() => ({
     uColor: { value: new THREE.Color(sphere.color) },
     uTime: { value: 0 }
   }), [sphere.color]);
 
+  const ghostColor = useMemo(() => new THREE.Color(sphere.color), [sphere.color]);
+
   useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.position.copy(sphere.pos);
-    }
+    if (groupRef.current) groupRef.current.position.copy(sphere.pos);
+
+    posHistory.current.shift();
+    posHistory.current.push(sphere.pos.clone());
+
+    ghostRefs.current.forEach((ghost, i) => {
+      if (!ghost) return;
+      ghost.position.copy(posHistory.current[i]);
+      const t = i / NUM_GHOSTS;
+      ghost.scale.setScalar(sphere.size * (0.15 + t * 0.7));
+      (ghost.material as THREE.MeshBasicMaterial).opacity = t * t * 0.45;
+    });
+
     const mat = meshRef.current?.material as THREE.ShaderMaterial | undefined;
-    if (mat?.uniforms?.uTime) {
-      mat.uniforms.uTime.value = state.clock.elapsedTime;
-    }
+    if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = state.clock.elapsedTime;
   });
 
   return (
-    <Trail
-      width={sphere.size * 0.8}
-      length={6}
-      color={new THREE.Color(sphere.color)}
-      attenuation={(t) => t * 0.8}
-    >
+    <>
+      {Array.from({ length: NUM_GHOSTS }, (_, i) => (
+        <mesh
+          key={i}
+          ref={el => { if (el) ghostRefs.current[i] = el; }}
+        >
+          <sphereGeometry args={[1, 8, 8]} />
+          <meshBasicMaterial
+            color={ghostColor}
+            transparent
+            opacity={0}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
       <group ref={groupRef}>
         <mesh ref={meshRef}>
           <sphereGeometry args={[sphere.size, 32, 32]} />
@@ -74,7 +100,7 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
           {sphere.emotion}
         </Text>
       </group>
-    </Trail>
+    </>
   );
 };
 

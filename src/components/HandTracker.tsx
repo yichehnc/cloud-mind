@@ -31,15 +31,41 @@ const getHandsInstance = async (): Promise<Hands> => {
   return handsInstance;
 };
 
+// MediaPipe reports handedness from model perspective (mirrored for webcam)
+// So MediaPipe 'Left' = user's right hand, 'Right' = user's left hand
+function getHandByUser(results: Results, userSide: 'left' | 'right') {
+  const modelLabel = userSide === 'left' ? 'Right' : 'Left';
+  if (!results.multiHandedness) return null;
+  const idx = results.multiHandedness.findIndex(h => h.label === modelLabel);
+  return idx >= 0 ? results.multiHandLandmarks?.[idx] ?? null : null;
+}
+
+function normalizedPinchDist(landmarks: any[]) {
+  const thumb = landmarks[4], index = landmarks[8];
+  const wrist = landmarks[0], indexMCP = landmarks[5];
+  const dist = Math.sqrt(
+    Math.pow(thumb.x - index.x, 2) +
+    Math.pow(thumb.y - index.y, 2) +
+    Math.pow(thumb.z - index.z, 2)
+  );
+  const palm = Math.sqrt(
+    Math.pow(wrist.x - indexMCP.x, 2) +
+    Math.pow(wrist.y - indexMCP.y, 2)
+  ) || 0.1;
+  return dist / palm;
+}
+
 const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isCurrentlyPinching, setIsCurrentlyPinching] = useState(false);
-  const [handDistance, setHandDistance] = useState(0.5);
+  const [sphereSize, setSphereSize] = useState(0.5);
+  const [leftHandActive, setLeftHandActive] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const lastStateRef = useRef(false);
+  const lastPinchRef = useRef(false);
+  const sphereSizeRef = useRef(0.5);
   const activeRef = useRef(true);
   const cameraRef = useRef<Camera | null>(null);
 
@@ -59,13 +85,12 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
           if (!isEffectActive || !activeRef.current) return;
           onLandmarks(results);
 
-          // Draw skeleton on biosurface canvas
+          // Draw skeleton
           const canvas = canvasRef.current;
           if (canvas) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
               ctx.clearRect(0, 0, canvas.width, canvas.height);
-              // Mirror to match mirrored video
               ctx.save();
               ctx.scale(-1, 1);
               ctx.translate(-canvas.width, 0);
@@ -79,56 +104,57 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
             }
           }
 
-          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            const landmarks = results.multiHandLandmarks[0];
-            const thumbTip = landmarks[4];
-            const indexTip = landmarks[8];
+          if (!results.multiHandLandmarks?.length) {
+            if (lastPinchRef.current) { setIsCurrentlyPinching(false); lastPinchRef.current = false; }
+            setLeftHandActive(false);
+            return;
+          }
 
-            const pinchDist = Math.sqrt(
-              Math.pow(thumbTip.x - indexTip.x, 2) +
-              Math.pow(thumbTip.y - indexTip.y, 2) +
-              Math.pow(thumbTip.z - indexTip.z, 2)
+          // Left hand: index-thumb spread controls sphere size
+          const leftLandmarks = getHandByUser(results, 'left');
+          if (leftLandmarks) {
+            const thumb = leftLandmarks[4], index = leftLandmarks[8];
+            const wrist = leftLandmarks[0], indexMCP = leftLandmarks[5];
+            const spread = Math.sqrt(
+              Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2)
             );
-
-            // Normalize by palm size (wrist→index MCP) to ignore hand distance from camera
-            const wrist = landmarks[0];
-            const indexMCP = landmarks[5];
-            const palmSize = Math.sqrt(
-              Math.pow(wrist.x - indexMCP.x, 2) +
-              Math.pow(wrist.y - indexMCP.y, 2)
+            const palm = Math.sqrt(
+              Math.pow(wrist.x - indexMCP.x, 2) + Math.pow(wrist.y - indexMCP.y, 2)
             ) || 0.1;
-            const normalizedPinch = pinchDist / palmSize;
-
-            const wasPinching = lastStateRef.current;
-            const currentPinch = wasPinching ? normalizedPinch < 0.45 : normalizedPinch < 0.28;
-
-            let currentSize = 0.5;
-            if (results.multiHandLandmarks.length === 2) {
-              const h1 = results.multiHandLandmarks[0][8];
-              const h2 = results.multiHandLandmarks[1][8];
-              const distHands = Math.sqrt(
-                Math.pow(h1.x - h2.x, 2) +
-                Math.pow(h1.y - h2.y, 2)
-              );
-              currentSize = Math.max(0.2, Math.min(1.5, distHands * 2.0));
-              setHandDistance(currentSize);
-            }
-
-            if (currentPinch && !lastStateRef.current) {
-              onPinch(currentSize);
-            }
-            if (currentPinch !== lastStateRef.current) {
-              setIsCurrentlyPinching(currentPinch);
-            }
-            lastStateRef.current = currentPinch;
+            // Map normalized spread to size: closed fist ≈ 0.3, fully open ≈ 2.5
+            const normalizedSpread = spread / palm;
+            const size = Math.max(0.3, Math.min(2.5, normalizedSpread * 2.2));
+            sphereSizeRef.current = size;
+            setSphereSize(size);
+            setLeftHandActive(true);
           } else {
-            if (canvasRef.current) {
-              const ctx = canvasRef.current.getContext('2d');
-              ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            setLeftHandActive(false);
+          }
+
+          // Right hand: pinch triggers release
+          const rightLandmarks = getHandByUser(results, 'right');
+          if (rightLandmarks) {
+            const norm = normalizedPinchDist(rightLandmarks);
+            const wasPinching = lastPinchRef.current;
+            const isPinching = wasPinching ? norm < 0.45 : norm < 0.28;
+
+            if (isPinching && !lastPinchRef.current) {
+              onPinch(sphereSizeRef.current);
             }
-            if (lastStateRef.current) {
-              setIsCurrentlyPinching(false);
-              lastStateRef.current = false;
+            if (isPinching !== lastPinchRef.current) setIsCurrentlyPinching(isPinching);
+            lastPinchRef.current = isPinching;
+          } else {
+            // Fallback: use first detected hand for pinch if only one present
+            const onlyLandmarks = results.multiHandLandmarks[0];
+            if (!leftLandmarks && onlyLandmarks) {
+              const norm = normalizedPinchDist(onlyLandmarks);
+              const wasPinching = lastPinchRef.current;
+              const isPinching = wasPinching ? norm < 0.45 : norm < 0.28;
+              if (isPinching && !lastPinchRef.current) onPinch(sphereSizeRef.current);
+              if (isPinching !== lastPinchRef.current) setIsCurrentlyPinching(isPinching);
+              lastPinchRef.current = isPinching;
+            } else if (!leftLandmarks) {
+              if (lastPinchRef.current) { setIsCurrentlyPinching(false); lastPinchRef.current = false; }
             }
           }
         });
@@ -136,11 +162,8 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
         const camera = new Camera(videoRef.current!, {
           onFrame: async () => {
             if (isEffectActive && activeRef.current && videoRef.current) {
-              try {
-                await hands.send({ image: videoRef.current });
-              } catch (e) {
-                if (isEffectActive) console.error('Hands send error', e);
-              }
+              try { await hands.send({ image: videoRef.current }); }
+              catch (e) { if (isEffectActive) console.error('Hands send error', e); }
             }
           },
           width: 640,
@@ -157,9 +180,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
 
         cameraRef.current = camera;
       } catch (err: any) {
-        if (isEffectActive && activeRef.current) {
-          setPermissionError('Init Error: ' + err.message);
-        }
+        if (isEffectActive && activeRef.current) setPermissionError('Init Error: ' + err.message);
       }
     };
 
@@ -168,24 +189,20 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
     return () => {
       isEffectActive = false;
       activeRef.current = false;
-      if (cameraRef.current) {
-        cameraRef.current.stop();
-        cameraRef.current = null;
-      }
+      if (cameraRef.current) { cameraRef.current.stop(); cameraRef.current = null; }
     };
   }, [onPinch, onLandmarks, retryCount]);
 
   return (
-    <div className="absolute top-28 right-10 w-56 h-40 bg-[#111] border border-white/20 rounded-lg overflow-hidden flex flex-col z-50 shadow-2xl">
+    <div className="absolute top-28 right-10 w-56 bg-[#111] border border-white/20 rounded-lg overflow-hidden flex flex-col z-50 shadow-2xl">
       <div className="h-4 bg-[#222] flex items-center px-2 justify-between">
         <span className="text-[8px] uppercase tracking-tighter text-[#888]">
           {permissionError ? `Error: ${permissionError}` : 'Gestural Biosurface: Active'}
         </span>
-        <div className="flex gap-1">
-          <div className={`w-1 h-1 rounded-full ${permissionError ? 'bg-red-500 animate-pulse' : (isLoaded ? 'bg-green-500' : 'bg-yellow-500')}`} />
-        </div>
+        <div className={`w-1 h-1 rounded-full ${permissionError ? 'bg-red-500 animate-pulse' : (isLoaded ? 'bg-green-500' : 'bg-yellow-500')}`} />
       </div>
-      <div className="flex-grow flex items-center justify-center relative bg-black/40">
+
+      <div className="h-36 flex items-center justify-center relative bg-black/40">
         {!isLoaded && !permissionError && (
           <div className="absolute inset-0 flex items-center justify-center text-white/50 text-[10px] uppercase tracking-widest text-center">
             Initializing...
@@ -213,13 +230,29 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onPinch, onLandmarks }) => {
           </div>
         )}
       </div>
-      <div className="p-2 border-t border-white/10 bg-[#0a0a0a]">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-[8px] uppercase tracking-widest text-[#666]">Scale Modulation</span>
-          <span className="text-[9px] text-white font-mono">{handDistance.toFixed(2)}x</span>
+
+      <div className="p-2 border-t border-white/10 bg-[#0a0a0a] flex flex-col gap-1.5">
+        {/* Left hand: size control */}
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <span className={`text-[8px] uppercase tracking-widest ${leftHandActive ? 'text-blue-400' : 'text-[#444]'}`}>
+              L · Size
+            </span>
+            <span className="text-[9px] text-white font-mono">{sphereSize.toFixed(2)}x</span>
+          </div>
+          <div className="w-full bg-white/5 h-[2px] rounded-full overflow-hidden">
+            <motion.div
+              animate={{ width: `${((sphereSize - 0.3) / 2.2) * 100}%` }}
+              className={`h-full ${leftHandActive ? 'bg-blue-400' : 'bg-white/30'}`}
+            />
+          </div>
         </div>
-        <div className="w-full bg-white/5 h-[2px] rounded-full overflow-hidden">
-          <motion.div animate={{ width: `${(handDistance / 1.5) * 100}%` }} className="bg-white h-full" />
+        {/* Right hand: pinch trigger */}
+        <div className="flex justify-between items-center">
+          <span className={`text-[8px] uppercase tracking-widest ${isCurrentlyPinching ? 'text-green-400' : 'text-[#444]'}`}>
+            R · Pinch to Release
+          </span>
+          <div className={`w-1.5 h-1.5 rounded-full ${isCurrentlyPinching ? 'bg-green-400 animate-pulse' : 'bg-white/10'}`} />
         </div>
       </div>
     </div>
