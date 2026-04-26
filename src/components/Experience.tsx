@@ -155,26 +155,22 @@ const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResult
   const [localSpheres, setLocalSpheres] = useState<Map<string, LocalSphere>>(new Map());
 
   useEffect(() => {
-    // Fetch all spheres including the original background sphere, limited to 50 to prevent WebGL hang
-    const q = query(collection(db, 'spheres'), orderBy('createdAt', 'desc'), limit(50));
+    const q = query(collection(db, 'spheres'), orderBy('createdAt', 'desc'), limit(300));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setLocalSpheres(prev => {
         const next = new Map(prev);
         snapshot.docChanges().forEach((change) => {
           const data = change.doc.data() as SphereData;
-          if (change.type === 'added') {
-            if (!next.has(change.doc.id)) {
-              next.set(change.doc.id, {
-                ...data,
-                id: change.doc.id,
-                pos: new THREE.Vector3(data.x, data.y, data.z),
-                vel: new THREE.Vector3(data.vx, data.vy, data.vz),
-                size: data.size || 0.5 // Fallback for original spheres that didn't have size
-              });
-            }
-          } else if (change.type === 'removed') {
-            next.delete(change.doc.id);
+          if (change.type === 'added' && !next.has(change.doc.id)) {
+            next.set(change.doc.id, {
+              ...data,
+              id: change.doc.id,
+              pos: new THREE.Vector3(data.x, data.y, data.z),
+              vel: new THREE.Vector3(data.vx, data.vy, data.vz),
+              size: data.size || 0.5,
+            });
           }
+          // Ignore 'removed' — spheres persist in the scene once loaded
         });
         return next;
       });
