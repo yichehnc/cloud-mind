@@ -1,12 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth();
-const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {
   CREATE = 'create',
@@ -50,7 +49,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 export const login = async () => {
   try {
-    await signInWithPopup(auth, googleProvider);
+    await signInAnonymously(auth);
   } catch (error) {
     console.error('Login error:', error);
   }

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera, Environment, Trail, Points, PointMaterial, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -18,18 +18,21 @@ interface LocalSphere extends SphereData {
 }
 
 const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
+  const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
-  
+
   const uniforms = useMemo(() => ({
     uColor: { value: new THREE.Color(sphere.color) },
     uTime: { value: 0 }
   }), [sphere.color]);
 
   useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.position.copy(sphere.pos);
-      // @ts-ignore
-      meshRef.current.material.uniforms.uTime.value = state.clock.elapsedTime;
+    if (groupRef.current) {
+      groupRef.current.position.copy(sphere.pos);
+    }
+    const mat = meshRef.current?.material as THREE.ShaderMaterial | undefined;
+    if (mat?.uniforms?.uTime) {
+      mat.uniforms.uTime.value = state.clock.elapsedTime;
     }
   });
 
@@ -40,8 +43,8 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
       color={new THREE.Color(sphere.color)}
       attenuation={(t) => t * 0.8}
     >
-      <group ref={meshRef}>
-        <mesh>
+      <group ref={groupRef}>
+        <mesh ref={meshRef}>
           <sphereGeometry args={[sphere.size, 32, 32]} />
           <shaderMaterial
             vertexShader={sphereVertexShader}
@@ -56,7 +59,6 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
           position={[0, sphere.size + 0.4, 0]}
           fontSize={0.2}
           color="white"
-          font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZJhiI2B.woff"
           anchorX="center"
           anchorY="middle"
           outlineWidth={0.01}
@@ -123,20 +125,7 @@ const Simulation = ({ spheres, isRunning, handResults }: { spheres: Map<string, 
         const dist = s1.pos.distanceTo(s2.pos);
         const minDist = (s1.size + s2.size) * 1.1;
         
-        // --- ADDED: Clustering Attraction ---
-        if (s1.emotion === s2.emotion || s1.color === s2.color) {
-          // Attract same emotions or colors
-          const attractionRange = 6.0;
-          if (dist < attractionRange && dist > minDist) {
-            const pullStrength = 0.0005 * (attractionRange - dist);
-            const pullDir = s2.pos.clone().sub(s1.pos).normalize();
-            s1.vel.add(pullDir.clone().multiplyScalar(pullStrength));
-            s2.vel.add(pullDir.clone().multiplyScalar(-pullStrength));
-          }
-        }
-        // ------------------------------------
-        
-        if (dist < minDist) {
+if (dist < minDist) {
           const collisionNormal = s1.pos.clone().sub(s2.pos).normalize();
           const overlap = minDist - dist;
           s1.pos.add(collisionNormal.clone().multiplyScalar(overlap * 0.5));
@@ -259,11 +248,12 @@ const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResult
         <pointLight position={[10, 10, 10]} intensity={1.5} />
         <spotLight position={[-10, 20, 10]} angle={0.15} penumbra={1} intensity={2} decay={2} castShadow />
         
-        <Simulation spheres={localSpheres} isRunning={isRunning} handResults={handResults} />
-        <HandVisualizer results={handResults} />
-        
-        <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-        <Environment preset="night" />
+        <Suspense fallback={null}>
+          <Simulation spheres={localSpheres} isRunning={isRunning} handResults={handResults} />
+          <HandVisualizer results={handResults} />
+          <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+          <Environment preset="night" />
+        </Suspense>
         
         <mesh>
           <boxGeometry args={[BOUNDS * 2 + RADIUS * 2, BOUNDS * 2 + RADIUS * 2, BOUNDS * 2 + RADIUS * 2]} />
