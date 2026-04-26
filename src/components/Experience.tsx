@@ -198,8 +198,8 @@ const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResult
         </Suspense>
         
         <mesh>
-          <boxGeometry args={[BOUNDS * 2 + RADIUS * 2, BOUNDS * 2 + RADIUS * 2, BOUNDS * 2 + RADIUS * 2]} />
-          <meshStandardMaterial color="#ffffff" wireframe transparent opacity={0.05} />
+          <boxGeometry args={[BOUNDS * 2 + 4, BOUNDS * 2 + 4, BOUNDS * 2 + 4]} />
+          <meshStandardMaterial color="#ffffff" wireframe transparent opacity={0.25} />
         </mesh>
       </Canvas>
     </div>
