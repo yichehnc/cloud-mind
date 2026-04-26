@@ -35,13 +35,13 @@ const MIN = [1, 1.1892, 1.4983];
 // Tritone (dissonant)
 const TRI = [1, 1.4142];
 
-type SoundFn = (ctx: AudioContext, now: number, out: AudioNode) => void;
+type SoundFn = (ctx: AudioContext, now: number, out: AudioNode, size: number) => void;
 
 const SOUNDS: Record<string, SoundFn> = {
 
-  Happy: (ctx, now, out) => {
+  Happy: (ctx, now, out, size) => {
     // Bright major triad — three sine oscs in harmony, upward shimmer
-    const root = 440 + Math.random() * 40;
+    const root = (440 + Math.random() * 40) * Math.pow(0.5 / size, 0.2);
     MAJ.forEach((ratio, i) => {
       const osc = makeOsc(ctx, root * ratio, 'sine', (Math.random() - 0.5) * 6);
       const g = makeGain(ctx, 0);
@@ -57,9 +57,9 @@ const SOUNDS: Record<string, SoundFn> = {
     });
   },
 
-  Joyful: (ctx, now, out) => {
+  Joyful: (ctx, now, out, size) => {
     // Ascending major arpeggio — bright, playful, musical
-    const root = 440 + Math.random() * 60;
+    const root = (440 + Math.random() * 60) * Math.pow(0.5 / size, 0.2);
     const notes = [1, 1.2599, 1.4983, 2]; // root, maj3, P5, octave
     notes.forEach((ratio, i) => {
       const osc = makeOsc(ctx, root * ratio, 'triangle', (Math.random() - 0.5) * 5);
@@ -77,9 +77,9 @@ const SOUNDS: Record<string, SoundFn> = {
     });
   },
 
-  Anger: (ctx, now, out) => {
+  Anger: (ctx, now, out, size) => {
     // Harsh tritone + heavy distortion + low growl
-    const root = 80 + Math.random() * 30;
+    const root = (80 + Math.random() * 30) * Math.pow(0.5 / size, 0.25);
     TRI.forEach((ratio) => {
       const osc = makeOsc(ctx, root * ratio, 'sawtooth', (Math.random() - 0.5) * 30);
       const sat = makeSaturator(ctx, 0.95);
@@ -97,9 +97,9 @@ const SOUNDS: Record<string, SoundFn> = {
     });
   },
 
-  Calm: (ctx, now, out) => {
+  Calm: (ctx, now, out, size) => {
     // Soft sine pad — slow attack, long gentle fade
-    const root = 280 + Math.random() * 40;
+    const root = (280 + Math.random() * 40) * Math.pow(0.5 / size, 0.2);
     [1, 1.5].forEach((ratio, i) => {
       const osc = makeOsc(ctx, root * ratio, 'sine', (Math.random() - 0.5) * 4);
       const g = makeGain(ctx, 0);
@@ -114,9 +114,9 @@ const SOUNDS: Record<string, SoundFn> = {
     });
   },
 
-  Anxiety: (ctx, now, out) => {
+  Anxiety: (ctx, now, out, size) => {
     // Detuned beating pair + tremolo — unsettled, tense
-    const root = 380 + Math.random() * 60;
+    const root = (380 + Math.random() * 60) * Math.pow(0.5 / size, 0.2);
     [0, 12].forEach((detuneOffset) => {
       const osc = makeOsc(ctx, root, 'sawtooth', detuneOffset + (Math.random() - 0.5) * 8);
       const sat = makeSaturator(ctx, 0.5);
@@ -137,9 +137,9 @@ const SOUNDS: Record<string, SoundFn> = {
     });
   },
 
-  Jealous: (ctx, now, out) => {
+  Jealous: (ctx, now, out, size) => {
     // Minor interval — bittersweet, slightly dark
-    const root = 330 + Math.random() * 40;
+    const root = (330 + Math.random() * 40) * Math.pow(0.5 / size, 0.2);
     MIN.slice(0, 2).forEach((ratio, i) => {
       const osc = makeOsc(ctx, root * ratio, 'triangle', (Math.random() - 0.5) * 8);
       const sat = makeSaturator(ctx, 0.3);
@@ -154,9 +154,9 @@ const SOUNDS: Record<string, SoundFn> = {
     });
   },
 
-  Love: (ctx, now, out) => {
+  Love: (ctx, now, out, size) => {
     // Warm octave pair — round, intimate, gentle bloom
-    const root = 320 + Math.random() * 40;
+    const root = (320 + Math.random() * 40) * Math.pow(0.5 / size, 0.2);
     [1, 2, 3].forEach((ratio, i) => {
       const osc = makeOsc(ctx, root * ratio, 'sine', (Math.random() - 0.5) * 5);
       const lpf = ctx.createBiquadFilter();
@@ -170,9 +170,9 @@ const SOUNDS: Record<string, SoundFn> = {
     });
   },
 
-  Melancholy: (ctx, now, out) => {
+  Melancholy: (ctx, now, out, size) => {
     // Descending pitch glide — slow, mournful
-    const root = 240 + Math.random() * 30;
+    const root = (240 + Math.random() * 30) * Math.pow(0.5 / size, 0.2);
     const osc = makeOsc(ctx, root, 'triangle');
     osc.frequency.setValueAtTime(root, now);
     osc.frequency.exponentialRampToValueAtTime(root * 0.65, now + 1.0);
@@ -187,9 +187,9 @@ const SOUNDS: Record<string, SoundFn> = {
     osc.start(now); osc.stop(now + 1.3);
   },
 
-  Fear: (ctx, now, out) => {
+  Fear: (ctx, now, out, size) => {
     // Sub rumble + noise burst + trembling LFO
-    const root = 55 + Math.random() * 25;
+    const root = (55 + Math.random() * 25) * Math.pow(0.5 / size, 0.25);
     const osc = makeOsc(ctx, root, 'sawtooth');
     const sat = makeSaturator(ctx, 0.85);
     const hpf = ctx.createBiquadFilter();
@@ -210,9 +210,9 @@ const SOUNDS: Record<string, SoundFn> = {
     lfo.start(now); lfo.stop(now + 0.8);
   },
 
-  Awe: (ctx, now, out) => {
+  Awe: (ctx, now, out, size) => {
     // Harmonic series bell — ethereal shimmer, high partials
-    const root = 220 + Math.random() * 40;
+    const root = (220 + Math.random() * 40) * Math.pow(0.5 / size, 0.2);
     [1, 2, 3, 4, 6].forEach((harmonic, i) => {
       const osc = makeOsc(ctx, root * harmonic, 'sine', (Math.random() - 0.5) * 4);
       const g = makeGain(ctx, 0);
@@ -286,13 +286,12 @@ export function useSoundEngine() {
     return dryGain;
   }, []);
 
-  const play = useCallback((emotion: string) => {
+  const play = useCallback((emotion: string, size: number = 0.5) => {
     const ctx = getCtx();
     const now = ctx.currentTime;
 
-    // Build a pre-reverb bus: dry → compressor, wet branch from reverb
-    const sampleRate = ctx.sampleRate;
     if (!reverbRef.current) {
+      const sampleRate = ctx.sampleRate;
       const length = sampleRate * 2.0;
       const impulse = ctx.createBuffer(2, length, sampleRate);
       for (let c = 0; c < 2; c++) {
@@ -316,25 +315,25 @@ export function useSoundEngine() {
       comp.connect(ctx.destination);
     }
 
-    // Per-sound dry/wet split
+    // Size → volume: clamp so small spheres are quiet, large are full
+    const volumeScale = Math.max(0.3, Math.min(1.8, size * 0.9));
+
+    const sizeGain = ctx.createGain(); sizeGain.gain.value = volumeScale;
     const dryBus = ctx.createGain(); dryBus.gain.value = 0.65;
     const wetBus = ctx.createGain(); wetBus.gain.value = 0.35;
     const merge = ctx.createGain(); merge.gain.value = 1;
 
+    sizeGain.connect(dryBus);
+    sizeGain.connect(wetBus);
     dryBus.connect(merge);
     wetBus.connect(reverbRef.current);
     reverbRef.current.connect(merge);
     merge.connect(compressorRef.current);
 
-    // Per-sound insert: synthesizer writes into splitGain
-    const insert = ctx.createGain(); insert.gain.value = 1;
-    insert.connect(dryBus);
-    insert.connect(wetBus);
-
     const fn = SOUNDS[emotion];
-    if (fn) fn(ctx, now, insert);
-    else SOUNDS['Awe'](ctx, now, insert); // fallback
-  }, [getCtx, getMaster]);
+    if (fn) fn(ctx, now, sizeGain, size);
+    else SOUNDS['Awe'](ctx, now, sizeGain, size);
+  }, [getCtx]);
 
   return { play };
 }

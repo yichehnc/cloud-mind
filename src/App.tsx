@@ -68,7 +68,7 @@ export default function App() {
 
     try {
       await addDoc(collection(db, 'spheres'), sphereData);
-      play(emotion);
+      play(emotion, size);
       setCurrentEmotion(emotion);
       setShowNotification(true);
       setTimeout(() => setShowNotification(false), 2000);
