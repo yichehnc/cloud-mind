@@ -9,6 +9,7 @@ import { Results } from '@mediapipe/hands';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { useSoundEngine } from './lib/useSoundEngine';
+import { Analytics } from '@vercel/analytics/react';
 
 // Help generate a hex color from a string
 const stringToColor = (str: string) => {
@@ -94,9 +95,11 @@ export default function App() {
   }
 
   return (
-    <div className="w-full h-screen overflow-hidden relative flex flex-col bg-[#080808]">
-      {/* Background Mesh Pattern */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none bg-mesh z-0"></div>
+    <>
+      <Analytics />
+      <div className="w-full h-screen overflow-hidden relative flex flex-col bg-[#080808]">
+        {/* Background Mesh Pattern */}
+        <div className="absolute inset-0 opacity-5 pointer-events-none bg-mesh z-0"></div>
 
       {/* Header Navigation */}
       <header className="absolute top-0 left-0 right-0 z-20 flex justify-between items-start p-10 pointer-events-none">
@@ -211,6 +214,7 @@ export default function App() {
         <span className="text-[9px] text-white/20 font-mono tracking-tighter">V1.0.4.C</span>
       </div>
     </div>
+    </>
   );
 }
 
