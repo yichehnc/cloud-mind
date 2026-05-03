@@ -40,13 +40,25 @@ function hashId(id: string): number {
   return Math.abs(h);
 }
 
-const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
+const LIFETIME_SECONDS = 90;
+
+function formatTime(secs: number): string {
+  const s = Math.max(0, Math.ceil(secs));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+}
+
+const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: string) => void }) => {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
+  const startRef = useRef(Date.now());
+  const lastTickRef = useRef(0);
+  const expiredRef = useRef(false);
+  const [displayTime, setDisplayTime] = useState(formatTime(LIFETIME_SECONDS));
 
   const blend = useMemo(() => {
     const h = hashId(sphere.id);
-    // 70% default additive, 30% random from safe modes
     return (h % 10) < 3 ? RANDOM_BLEND_CONFIGS[h % RANDOM_BLEND_CONFIGS.length] : DEFAULT_BLEND;
   }, [sphere.id]);
 
@@ -59,11 +71,30 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
 
   useFrame((state) => {
     if (groupRef.current) groupRef.current.position.copy(sphere.pos);
+
+    const now = Date.now();
+    const elapsed = (now - startRef.current) / 1000;
+    const remaining = Math.max(0, LIFETIME_SECONDS - elapsed);
+
     const mat = meshRef.current?.material as THREE.ShaderMaterial | undefined;
     if (mat?.uniforms) {
       mat.uniforms.uTime.value = state.clock.elapsedTime;
       const nearest = BOUNDS - Math.max(Math.abs(sphere.pos.x), Math.abs(sphere.pos.y), Math.abs(sphere.pos.z));
-      mat.uniforms.uFade.value = Math.max(0, Math.min(1, nearest / 3));
+      const wallFade = Math.max(0, Math.min(1, nearest / 3));
+      const timerFade = remaining < 10 ? remaining / 10 : 1;
+      mat.uniforms.uFade.value = wallFade * timerFade;
+    }
+
+    // Update display once per second
+    if (now - lastTickRef.current >= 1000) {
+      lastTickRef.current = now;
+      setDisplayTime(formatTime(remaining));
+    }
+
+    // Expire once
+    if (remaining <= 0 && !expiredRef.current) {
+      expiredRef.current = true;
+      onExpire(sphere.id);
     }
   });
 
@@ -90,29 +121,39 @@ const Sphere = ({ sphere }: { sphere: LocalSphere }) => {
           />
         </mesh>
         <Text
-          position={[0, sphere.size + 0.4, 0]}
-          fontSize={0.2}
+          position={[0, sphere.size + 0.45, 0]}
+          fontSize={0.18}
           color="white"
           anchorX="center"
           anchorY="middle"
           outlineWidth={0.01}
           outlineColor="#000000"
           fillOpacity={0.8}
-          onBeforeRender={(renderer, scene, camera, geometry, material) => {
-            if (meshRef.current) {
-              const time = performance.now() * 0.002;
-              (material as THREE.MeshBasicMaterial).opacity = 0.5 + Math.sin(time) * 0.2;
-            }
+          onBeforeRender={(_r, _s, _c, _g, material) => {
+            const time = performance.now() * 0.002;
+            (material as THREE.MeshBasicMaterial).opacity = 0.5 + Math.sin(time) * 0.2;
           }}
         >
           {sphere.emotion}
+        </Text>
+        <Text
+          position={[0, sphere.size + 0.2, 0]}
+          fontSize={0.14}
+          color="white"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.008}
+          outlineColor="#000000"
+          fillOpacity={0.5}
+        >
+          {displayTime}
         </Text>
       </group>
     </Trail>
   );
 };
 
-const Simulation = ({ spheres, isRunning, handResults }: { spheres: Map<string, LocalSphere>, isRunning: boolean, handResults: Results | null }) => {
+const Simulation = ({ spheres, isRunning, handResults, onExpire }: { spheres: Map<string, LocalSphere>, isRunning: boolean, handResults: Results | null, onExpire: (id: string) => void }) => {
   useFrame((state, delta) => {
     if (!isRunning) return;
 
@@ -182,7 +223,7 @@ if (dist < minDist) {
   return (
     <>
       {Array.from(spheres.values()).map((s) => (
-        <Sphere key={s.id} sphere={s} />
+        <Sphere key={s.id} sphere={s} onExpire={onExpire} />
       ))}
     </>
   );
@@ -207,6 +248,14 @@ const BoundsCube = () => {
 
 const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResults: Results | null }) => {
   const [localSpheres, setLocalSpheres] = useState<Map<string, LocalSphere>>(new Map());
+
+  const handleExpire = useCallback((id: string) => {
+    setLocalSpheres(prev => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, 'spheres'), orderBy('createdAt', 'desc'), limit(147));
@@ -246,7 +295,7 @@ const Experience = ({ isRunning, handResults }: { isRunning: boolean, handResult
         <spotLight position={[-10, 20, 10]} angle={0.15} penumbra={1} intensity={2} decay={2} castShadow />
         
         <Suspense fallback={null}>
-          <Simulation spheres={localSpheres} isRunning={isRunning} handResults={handResults} />
+          <Simulation spheres={localSpheres} isRunning={isRunning} handResults={handResults} onExpire={handleExpire} />
           <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
           <Environment preset="night" />
         </Suspense>
