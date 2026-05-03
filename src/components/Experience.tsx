@@ -230,70 +230,51 @@ if (dist < minDist) {
 };
 
 
-// Portal sits at front-bottom-left corner of the cube
-const PORTAL_POS: [number, number, number] = [-(BOUNDS + 2), -(BOUNDS + 2), BOUNDS + 2];
+// Portal — rectangle starting from front-bottom-left corner of cube
+const PORTAL_W = 2.2;
+const PORTAL_H = 3.8;
 
 const Portal = () => {
   const [hovered, setHovered] = useState(false);
-  const outerRef = useRef<THREE.Mesh>(null);
-  const innerRef = useRef<THREE.Mesh>(null);
 
   useEffect(() => {
     document.body.style.cursor = hovered ? 'pointer' : 'auto';
     return () => { document.body.style.cursor = 'auto'; };
   }, [hovered]);
 
-  useFrame((state) => {
-    const t = state.clock.elapsedTime;
-    if (outerRef.current) outerRef.current.rotation.z = t * 0.4;
-    if (innerRef.current) innerRef.current.rotation.z = -t * 0.7;
-  });
+  const lineObj = useMemo(() => {
+    const pts = [
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(PORTAL_W, 0, 0),
+      new THREE.Vector3(PORTAL_W, PORTAL_H, 0),
+      new THREE.Vector3(0, PORTAL_H, 0),
+      new THREE.Vector3(0, 0, 0),
+    ];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: '#888888' }));
+  }, []);
 
-  const color = hovered ? '#ffffff' : '#aaaaaa';
+  // Update line colour on hover
+  useEffect(() => {
+    (lineObj.material as THREE.LineBasicMaterial).color.set(hovered ? '#ffffff' : '#888888');
+  }, [hovered, lineObj]);
 
   return (
-    <group position={PORTAL_POS}>
-      {/* Invisible hit area */}
+    // Anchor at front-bottom-left corner of cube, extend right and up
+    <group position={[-(BOUNDS + 2), -(BOUNDS + 2), BOUNDS + 2]}>
+      {/* Invisible hit plane */}
       <mesh
+        position={[PORTAL_W / 2, PORTAL_H / 2, 0]}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
-        onClick={() => window.open('?clear', '_blank')}
+        onClick={() => window.open('about:blank', '_blank')}
       >
-        <circleGeometry args={[1.6, 32]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        <planeGeometry args={[PORTAL_W, PORTAL_H]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Outer ring */}
-      <mesh ref={outerRef}>
-        <torusGeometry args={[1.4, 0.04, 8, 64]} />
-        <meshBasicMaterial color={color} />
-      </mesh>
-
-      {/* Inner spinning ring */}
-      <mesh ref={innerRef}>
-        <torusGeometry args={[0.9, 0.025, 8, 48]} />
-        <meshBasicMaterial color={color} />
-      </mesh>
-
-      {/* Cross hairs */}
-      {[[1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]].map(([x, y], i) => (
-        <mesh key={i} position={[x, y, 0]}>
-          <sphereGeometry args={[0.06, 8, 8]} />
-          <meshBasicMaterial color={color} />
-        </mesh>
-      ))}
-
-      {/* Label */}
-      <Text
-        position={[0, -1.9, 0]}
-        fontSize={0.18}
-        color={color}
-        anchorX="center"
-        anchorY="middle"
-        fillOpacity={hovered ? 1 : 0.4}
-      >
-        VOID
-      </Text>
+      {/* Rectangle linework */}
+      <primitive object={lineObj} />
     </group>
   );
 };
