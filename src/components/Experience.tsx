@@ -40,7 +40,10 @@ function hashId(id: string): number {
   return Math.abs(h);
 }
 
-const LIFETIME_SECONDS = 90;
+// Per-sphere randomised lifetime: 45–180 s
+function getLifetime(id: string): number {
+  return 45 + (hashId(id) % 136);
+}
 
 function formatTime(secs: number): string {
   const s = Math.max(0, Math.ceil(secs));
@@ -55,7 +58,8 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
   const startRef = useRef(Date.now());
   const lastTickRef = useRef(0);
   const expiredRef = useRef(false);
-  const [displayTime, setDisplayTime] = useState(formatTime(LIFETIME_SECONDS));
+  const lifetime = useMemo(() => getLifetime(sphere.id), [sphere.id]);
+  const [displayTime, setDisplayTime] = useState(formatTime(lifetime));
 
   const blend = useMemo(() => {
     const h = hashId(sphere.id);
@@ -74,7 +78,7 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
 
     const now = Date.now();
     const elapsed = (now - startRef.current) / 1000;
-    const remaining = Math.max(0, LIFETIME_SECONDS - elapsed);
+    const remaining = Math.max(0, lifetime - elapsed);
 
     const mat = meshRef.current?.material as THREE.ShaderMaterial | undefined;
     if (mat?.uniforms) {
@@ -121,13 +125,11 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
           />
         </mesh>
         <Text
-          position={[0, sphere.size + 0.45, 0]}
+          position={[0, sphere.size + 0.35, 0]}
           fontSize={0.18}
           color="white"
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.01}
-          outlineColor="#000000"
           fillOpacity={0.8}
           onBeforeRender={(_r, _s, _c, _g, material) => {
             const time = performance.now() * 0.002;
@@ -137,14 +139,12 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
           {sphere.emotion}
         </Text>
         <Text
-          position={[0, sphere.size + 0.2, 0]}
-          fontSize={0.14}
+          position={[0, 0, 0]}
+          fontSize={0.2}
           color="white"
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.008}
-          outlineColor="#000000"
-          fillOpacity={0.5}
+          fillOpacity={0.9}
         >
           {displayTime}
         </Text>
