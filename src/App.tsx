@@ -3,6 +3,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, login, handleFirestoreError, OperationType } from './lib/firebase';
 import Experience from './components/Experience';
 import ClearPage from './components/ClearPage';
+import NewPage from './components/NewPage';
 import EmotionInput, { EMOTION_PRESETS, getCustomEmotionColor } from './components/EmotionInput';
 import HandTracker from './components/HandTracker';
 import { Power, PowerOff } from 'lucide-react';
@@ -25,10 +26,13 @@ const stringToColor = (str: string) => {
   return color;
 };
 
-const isClearPage = new URLSearchParams(window.location.search).has('clear');
+const params = new URLSearchParams(window.location.search);
+const isClearPage = params.has('clear');
+const isNewPage = params.has('new');
 
 export default function App() {
   if (isClearPage) return <ClearPage />;
+  if (isNewPage) return <NewPage />;
   const [user, setUser] = useState<User | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [currentEmotion, setCurrentEmotion] = useState('Happy');

@@ -230,9 +230,9 @@ if (dist < minDist) {
 };
 
 
-// Portal — rectangle starting from front-bottom-left corner of cube
-const PORTAL_W = 2.2;
-const PORTAL_H = 3.8;
+// Portal — rectangle starting from front-bottom-left corner of cube (2× size)
+const PORTAL_W = 4.4;
+const PORTAL_H = 7.6;
 
 const Portal = () => {
   const [hovered, setHovered] = useState(false);
@@ -254,20 +254,30 @@ const Portal = () => {
     return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: '#888888' }));
   }, []);
 
-  // Update line colour on hover
   useEffect(() => {
     (lineObj.material as THREE.LineBasicMaterial).color.set(hovered ? '#ffffff' : '#888888');
   }, [hovered, lineObj]);
 
   return (
-    // Anchor at front-bottom-left corner of cube, extend right and up
     <group position={[-(BOUNDS + 2), -(BOUNDS + 2), BOUNDS + 2]}>
-      {/* Invisible hit plane */}
+      {/* White fill on hover */}
+      <mesh position={[PORTAL_W / 2, PORTAL_H / 2, -0.01]}>
+        <planeGeometry args={[PORTAL_W, PORTAL_H]} />
+        <meshBasicMaterial
+          color="#ffffff"
+          transparent
+          opacity={hovered ? 0.12 : 0}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Hit plane */}
       <mesh
         position={[PORTAL_W / 2, PORTAL_H / 2, 0]}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
-        onClick={() => window.open('about:blank', '_blank')}
+        onClick={() => { window.location.href = '?new'; }}
       >
         <planeGeometry args={[PORTAL_W, PORTAL_H]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
