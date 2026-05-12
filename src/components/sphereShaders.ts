@@ -2,7 +2,6 @@ export const sphereVertexShader = `
   varying vec3 vNormal;
   varying vec3 vViewPosition;
   varying vec2 vUv;
-  varying vec4 vFragCoord;
 
   void main() {
     vNormal = normalize(normalMatrix * normal);
@@ -10,7 +9,6 @@ export const sphereVertexShader = `
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     vViewPosition = -mvPosition.xyz;
     gl_Position = projectionMatrix * mvPosition;
-    vFragCoord = gl_Position;
   }
 `;
 

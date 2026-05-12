@@ -9,7 +9,6 @@ import { sphereVertexShader, sphereFragmentShader } from './sphereShaders';
 
 // Bounds for our simulation box
 const BOUNDS = 8;
-const RADIUS = 0.5;
 
 interface LocalSphere extends SphereData {
   id: string;
@@ -19,9 +18,6 @@ interface LocalSphere extends SphereData {
 
 type BlendConfig = {
   blending: THREE.Blending;
-  blendEquation?: THREE.BlendingEquation;
-  blendSrc?: THREE.BlendingSrcFactor;
-  blendDst?: THREE.BlendingDstFactor;
   dissolve: boolean;
 };
 
@@ -55,11 +51,11 @@ function formatTime(secs: number): string {
 const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: string) => void }) => {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
+  const timerTextRef = useRef<any>(null);
   const startRef = useRef(Date.now());
   const lastTickRef = useRef(0);
   const expiredRef = useRef(false);
   const lifetime = useMemo(() => getLifetime(sphere.id), [sphere.id]);
-  const [displayTime, setDisplayTime] = useState(formatTime(lifetime));
 
   const blend = useMemo(() => {
     const h = hashId(sphere.id);
@@ -89,10 +85,13 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
       mat.uniforms.uFade.value = wallFade * timerFade;
     }
 
-    // Update display once per second
+    // Update timer text directly via ref (avoids setState re-renders)
     if (now - lastTickRef.current >= 1000) {
       lastTickRef.current = now;
-      setDisplayTime(formatTime(remaining));
+      if (timerTextRef.current) {
+        timerTextRef.current.text = formatTime(remaining);
+        timerTextRef.current.sync();
+      }
     }
 
     // Expire once
@@ -118,9 +117,6 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
             uniforms={uniforms}
             transparent
             blending={blend.blending}
-            blendEquation={blend.blendEquation}
-            blendSrc={blend.blendSrc}
-            blendDst={blend.blendDst}
             depthWrite={false}
           />
         </mesh>
@@ -139,6 +135,7 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
           {sphere.emotion}
         </Text>
         <Text
+          ref={timerTextRef}
           position={[0, 0, 0]}
           fontSize={0.2}
           color="white"
@@ -146,7 +143,7 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
           anchorY="middle"
           fillOpacity={0.9}
         >
-          {displayTime}
+          {formatTime(lifetime)}
         </Text>
       </group>
     </Trail>
@@ -154,10 +151,18 @@ const Sphere = ({ sphere, onExpire }: { sphere: LocalSphere; onExpire: (id: stri
 };
 
 const Simulation = ({ spheres, isRunning, handResults, onExpire }: { spheres: Map<string, LocalSphere>, isRunning: boolean, handResults: Results | null, onExpire: (id: string) => void }) => {
+  const sphereListRef = useRef<LocalSphere[]>([]);
+  const lastSizeRef = useRef(0);
+
   useFrame((state, delta) => {
     if (!isRunning) return;
 
-    const sphereList = Array.from(spheres.values());
+    // Only rebuild array when map size changes
+    if (spheres.size !== lastSizeRef.current) {
+      sphereListRef.current = Array.from(spheres.values());
+      lastSizeRef.current = spheres.size;
+    }
+    const sphereList = sphereListRef.current;
     const friction = Math.max(0.985, 1.0 - sphereList.length * 0.00015);
     
     // Hand interaction positions

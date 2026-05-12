@@ -216,6 +216,8 @@ export function useSoundEngine() {
   const ctxRef = useRef<AudioContext | null>(null);
   const reverbRef = useRef<ConvolverNode | null>(null);
   const compressorRef = useRef<DynamicsCompressorNode | null>(null);
+  const dryBusRef = useRef<GainNode | null>(null);
+  const wetBusRef = useRef<GainNode | null>(null);
 
   const getCtx = useCallback((): AudioContext => {
     if (!ctxRef.current) ctxRef.current = new AudioContext();
@@ -223,12 +225,10 @@ export function useSoundEngine() {
     return ctxRef.current;
   }, []);
 
-  const getMaster = useCallback((ctx: AudioContext): GainNode => {
-    if (reverbRef.current && compressorRef.current) {
-      return reverbRef.current as unknown as GainNode;
-    }
+  const ensureMaster = useCallback((ctx: AudioContext) => {
+    if (reverbRef.current && compressorRef.current) return;
 
-    // Reverb
+    // Reverb (synthetic impulse response)
     const sampleRate = ctx.sampleRate;
     const length = sampleRate * 2.0;
     const impulse = ctx.createBuffer(2, length, sampleRate);
@@ -242,7 +242,7 @@ export function useSoundEngine() {
     reverb.buffer = impulse;
     reverbRef.current = reverb;
 
-    // Compressor (OTT-style: fast attack, moderate ratio)
+    // Compressor
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -20;
     comp.knee.value = 8;
@@ -251,73 +251,34 @@ export function useSoundEngine() {
     comp.release.value = 0.12;
     compressorRef.current = comp;
 
-    const wetGain = ctx.createGain();
-    wetGain.gain.value = 0.38;
-    const dryGain = ctx.createGain();
-    dryGain.gain.value = 0.62;
+    // Persistent dry/wet buses — shared across all play() calls
+    const dryBus = ctx.createGain(); dryBus.gain.value = 0.65;
+    const wetBus = ctx.createGain(); wetBus.gain.value = 0.35;
+    dryBusRef.current = dryBus;
+    wetBusRef.current = wetBus;
 
-    // Bus: sound → dryGain → comp → out
-    //      sound → reverb → wetGain → comp → out
-    reverb.connect(wetGain);
-    wetGain.connect(comp);
-    dryGain.connect(comp);
+    dryBus.connect(comp);
+    wetBus.connect(reverb);
+    reverb.connect(comp);
     comp.connect(ctx.destination);
-
-    // Return dryGain as the main insert point — each sound connects here
-    // Store wetGain ref via a hack: attach to reverb node
-    (reverb as any).__dryGain = dryGain;
-
-    return dryGain;
   }, []);
 
   const play = useCallback((emotion: string, size: number = 0.5) => {
     const ctx = getCtx();
     const now = ctx.currentTime;
+    ensureMaster(ctx);
 
-    if (!reverbRef.current) {
-      const sampleRate = ctx.sampleRate;
-      const length = sampleRate * 2.0;
-      const impulse = ctx.createBuffer(2, length, sampleRate);
-      for (let c = 0; c < 2; c++) {
-        const ch = impulse.getChannelData(c);
-        for (let i = 0; i < length; i++) {
-          ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3);
-        }
-      }
-      reverbRef.current = ctx.createConvolver();
-      reverbRef.current.buffer = impulse;
-    }
-
-    if (!compressorRef.current) {
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -20;
-      comp.knee.value = 8;
-      comp.ratio.value = 5;
-      comp.attack.value = 0.002;
-      comp.release.value = 0.12;
-      compressorRef.current = comp;
-      comp.connect(ctx.destination);
-    }
-
-    // Size → volume: clamp so small spheres are quiet, large are full
+    // Only node created per play(): a gain for size-based volume
     const volumeScale = Math.max(0.3, Math.min(1.8, size * 0.9));
-
-    const sizeGain = ctx.createGain(); sizeGain.gain.value = volumeScale;
-    const dryBus = ctx.createGain(); dryBus.gain.value = 0.65;
-    const wetBus = ctx.createGain(); wetBus.gain.value = 0.35;
-    const merge = ctx.createGain(); merge.gain.value = 1;
-
-    sizeGain.connect(dryBus);
-    sizeGain.connect(wetBus);
-    dryBus.connect(merge);
-    wetBus.connect(reverbRef.current);
-    reverbRef.current.connect(merge);
-    merge.connect(compressorRef.current);
+    const sizeGain = ctx.createGain();
+    sizeGain.gain.value = volumeScale;
+    sizeGain.connect(dryBusRef.current!);
+    sizeGain.connect(wetBusRef.current!);
 
     const fn = SOUNDS[emotion];
     if (fn) fn(ctx, now, sizeGain, size);
     else SOUNDS['Happy'](ctx, now, sizeGain, size);
-  }, [getCtx]);
+  }, [getCtx, ensureMaster]);
 
   return { play };
 }
